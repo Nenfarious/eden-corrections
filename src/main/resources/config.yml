@@ -1,0 +1,463 @@
+# ==================================================================
+# EdenCorrections Plugin Configuration
+# ==================================================================
+
+# Enable debug mode for detailed logging
+debug: false
+
+# Default language
+language: "en"
+
+# Time settings (in seconds)
+times:
+  duty-transition: 10
+  chase-duration: 300
+  wanted-duration: 1800
+  jail-countdown: 10
+  contraband-compliance: 10
+
+# Jail system settings
+jail:
+  base-time: 300
+  level-multiplier: 60
+  max-wanted-level: 5
+
+# Chase system settings
+chase:
+  max-distance: 100
+  warning-distance: 20
+  max-concurrent: 3
+
+# Guard restrictions
+guard-restrictions:
+  block-mining: true
+  block-crafting: true
+  block-storage: true
+
+# Database settings
+database:
+  type: "sqlite"
+  sqlite:
+    file: "edencorrections.db"
+  mysql:
+    host: "localhost"
+    port: 3306
+    database: "edencorrections"
+    username: "username"
+    password: "password"
+
+# ==================================================================
+# ENHANCED SYSTEMS CONFIGURATION
+# ==================================================================
+
+# Guard system with rank integration
+guard-system:
+  # WorldGuard region where duty can be activated
+  duty-region: "guard"
+  
+  # Time (in seconds) player must stay still during duty activation
+  immobilization-time: 5
+  
+  # Off-duty time earning system (NEW LOGICAL SYSTEM)
+  off-duty-earning:
+    # Base time requirement to earn first off-duty time (in minutes)
+    base-duty-requirement: 15
+    # Base off-duty time earned after meeting requirement (in minutes)
+    base-off-duty-earned: 30
+    # Performance bonuses (in minutes of off-duty time earned)
+    performance-bonuses:
+      # Regular searches (contraband requests)
+      searches-per-bonus: 10
+      search-bonus-time: 5
+      # Successful searches (contraband found)
+      successful-search-bonus: 10
+      # Successful arrests/jails
+      successful-arrest-bonus: 8
+      # Kills (with rank scaling)
+      kills-per-bonus: 5
+      kill-bonus-time: 15
+      # Successful metal detects/drug tests
+      successful-detection-bonus: 10
+      # Miscellaneous good performance
+      duty-time-bonus-rate: 2  # Extra minutes per hour of duty
+  
+  # LuckPerms group to rank mappings
+  rank-mappings:
+    trainee: "trainee"
+    private: "private"
+    officer: "officer"
+    sergeant: "sergeant"
+    captain: "captain"
+    warden: "warden"
+  
+  # CMI kit mappings for each rank
+  kit-mappings:
+    trainee: "trainee"
+    private: "private"
+    officer: "officer"
+    sergeant: "sergeant"
+    captain: "captain"
+    warden: "warden"
+
+# Enhanced contraband system
+contraband:
+  enabled: true
+  drug-detection: true
+  
+  # Maximum distance to request contraband from player
+  max-request-distance: 5
+  
+  # Grace period before compliance timeout
+  grace-period: 3
+  
+  # Contraband type definitions
+  types:
+    sword:
+      items: "WOODEN_SWORD,STONE_SWORD,IRON_SWORD,GOLDEN_SWORD,DIAMOND_SWORD,NETHERITE_SWORD"
+      description: "All swords and bladed weapons"
+    bow:
+      items: "BOW,CROSSBOW"
+      description: "All ranged weapons"
+    armor:
+      items: "LEATHER_HELMET,LEATHER_CHESTPLATE,LEATHER_LEGGINGS,LEATHER_BOOTS,CHAINMAIL_HELMET,CHAINMAIL_CHESTPLATE,CHAINMAIL_LEGGINGS,CHAINMAIL_BOOTS,IRON_HELMET,IRON_CHESTPLATE,IRON_LEGGINGS,IRON_BOOTS,GOLDEN_HELMET,GOLDEN_CHESTPLATE,GOLDEN_LEGGINGS,GOLDEN_BOOTS,DIAMOND_HELMET,DIAMOND_CHESTPLATE,DIAMOND_LEGGINGS,DIAMOND_BOOTS,NETHERITE_HELMET,NETHERITE_CHESTPLATE,NETHERITE_LEGGINGS,NETHERITE_BOOTS"
+      description: "All armor pieces"
+    drugs:
+      items: "SUGAR,NETHER_WART,SPIDER_EYE,FERMENTED_SPIDER_EYE,BLAZE_POWDER"
+      description: "Illegal substances and drugs"
+
+# Combat timer system
+combat-timer:
+  # Duration of combat timer (in seconds)
+  duration: 5
+  
+  # Prevent capture during combat
+  prevent-capture: true
+  
+  # Prevent teleportation during combat
+  prevent-teleport: true
+
+# Duty banking system (time to currency conversion)
+duty-banking:
+  # Enable duty time to currency conversion
+  enabled: true
+  
+  # Seconds of duty time per token
+  conversion-rate: 100
+  
+  # Minimum duty time required for conversion (in seconds)
+  minimum-conversion: 300
+  
+  # Auto-convert long duty sessions
+  auto-convert: false
+  auto-convert-threshold: 3600
+  
+  # Currency command template (supports {player} and {amount})
+  currency-command: "et give {player} {amount}"
+
+# Region-based restrictions
+regions:
+  # Zones where chases are prohibited (combines safe zones and no-chase zones)
+  no-chase-zones: "safezone"
+  
+  # Zones that require guards to be on duty
+  duty-required-zones: "guard_lockers,guard_lockers2,guardplotstairs"
+
+# ==================================================================
+# EdenCorrections Messages Configuration
+# ==================================================================
+# Messages support MiniMessage format and placeholders:
+# - Use {placeholder} for internal messages (recommended for most cases)
+# - Use %placeholder% for external plugin integration (HUDs, scoreboards, etc.)
+
+# Plugin prefix (used before all messages)
+prefix: "<gradient:#9D4EDD:#06FFA5>[₠]</gradient> "
+
+# Message categories
+messages:
+  # === UNIVERSAL MESSAGES ===
+  universal:
+    no-permission: "<gradient:#FF6B6B:#FF8E8E>🚫 Access Denied</gradient> <color:#ADB5BD>You don't have permission to use this command!</color>"
+    player-not-found: "<gradient:#FF6B6B:#FF8E8E>👤 Player Not Found</gradient> <color:#ADB5BD>Could not find player '<color:#FFB3C6><player></color>'</color>"
+    invalid-usage: "<gradient:#FFA94D:#FFB570>⚠️ Invalid Usage</gradient> <color:#ADB5BD>Correct usage: <color:#06FFA5><command></color></color>"
+    successful: "<gradient:#51CF66:#7ED321>✅ Success</gradient> <color:#ADB5BD>Operation completed successfully!</color>"
+    failed: "<gradient:#FF6B6B:#FF8E8E>❌ Failed</gradient> <color:#ADB5BD>Operation could not be completed</color>"
+    player-only: "<gradient:#FF6B6B:#FF8E8E>🎮 Player Only</gradient> <color:#ADB5BD>This command can only be used by players!</color>"
+    unknown-subcommand: "<gradient:#FF6B6B:#FF8E8E>❓ Unknown Command</gradient> <color:#ADB5BD>Unknown subcommand: <color:#FFB3C6><subcommand></color></color>"
+    missing-args: "<gradient:#FFA94D:#FFB570>📝 Missing Arguments</gradient> <color:#ADB5BD>Command requires more arguments: <color:#06FFA5><command></color></color>"
+    invalid-number: "<gradient:#FF6B6B:#FF8E8E>🔢 Invalid Number</gradient> <color:#ADB5BD>Expected a number but got: <color:#FFB3C6><value></color></color>"
+  
+  # === EXTERNAL INTEGRATION MESSAGES (using %placeholder% format) ===
+  external:
+    # These messages are designed for HUDs, scoreboards, and other external plugins
+    wanted-status: "Wanted Level %level% %stars%"
+    duty-status: "Duty: %status%"
+    chase-status: "Chase: %target%"
+    tokens-display: "Tokens: %tokens%"
+    rank-display: "Rank: %rank%"
+    
+    # Boss bar displays (commonly used by external plugins)
+    bossbar:
+      wanted: "⭐ WANTED LEVEL %level% %stars% - %minutes%m remaining"
+      chase-target: "🏃 BEING CHASED by %guard% - Distance: %distance%m"
+      chase-guard: "🏃 CHASING %target% - Distance: %distance%m"
+      grace-period: "⏰ Grace Period: %seconds%s remaining"
+      combat-timer: "⚔ Combat Timer: %seconds%s remaining"
+
+  # === SYSTEM MESSAGES ===
+  system:
+    startup: "<gradient:#51CF66:#7ED321>🚀 EdenCorrections Online</gradient> <color:#ADB5BD>All systems operational and ready!</color>"
+    shutdown: "<gradient:#ADB5BD:#868E96>🔌 System Shutdown</gradient> <color:#ADB5BD>EdenCorrections is shutting down...</color>"
+    reload-success: "<gradient:#51CF66:#7ED321>🔄 Reload Complete</gradient> <color:#ADB5BD>Configuration reloaded successfully!</color>"
+    reload-failed: "<gradient:#FF6B6B:#FF8E8E>❌ Reload Failed</gradient> <color:#ADB5BD>Configuration reload failed: <color:#FFB3C6><error></color></color>"
+    debug-enabled: "<gradient:#06FFA5:#00E5FF>🔍 Debug Mode ON</gradient> <color:#ADB5BD>Detailed logging enabled</color>"
+    debug-disabled: "<gradient:#ADB5BD:#868E96>🔍 Debug Mode OFF</gradient> <color:#ADB5BD>Standard logging active</color>"
+    debug-invalid-value: "<gradient:#FF6B6B:#FF8E8E>⚠️ Invalid Debug Value</gradient> <color:#ADB5BD>Use 'on' or 'off'</color>"
+    guard-alert: "<gradient:#FF6B6B:#FF3838>🚨 GUARD ALERT</gradient> <color:#FFB3C6><message></color>"
+    error:
+      general: "<gradient:#FF6B6B:#FF8E8E>💥 System Error</gradient> <color:#ADB5BD>An error occurred. Please contact an administrator.</color>"
+    admin:
+      error-notification: "<gradient:#FF6B6B:#FF3838>🚨 SYSTEM ERROR</gradient> <color:#FFB3C6><error></color>"
+
+  # === HELPFUL TIPS FOR COMPLEX SYSTEMS ===
+  tips:
+    duty-system:
+      - "<gradient:#9D4EDD:#06FFA5>💡 Duty System Tips</gradient>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/duty</color> to toggle your duty status</color>"
+      - "<color:#ADB5BD>• You must be in the guard station to go on/off duty</color>"
+      - "<color:#ADB5BD>• Your inventory is automatically saved when going on duty</color>"
+      - "<color:#ADB5BD>• Earn off-duty time by performing guard duties effectively</color>"
+      - "<color:#ADB5BD>• Stay on duty for <color:#FFB3C6>15+ minutes</color> to earn your first break</color>"
+    
+    contraband-system:
+      - "<gradient:#9D4EDD:#06FFA5>💡 Contraband System Tips</gradient>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/sword</color>, <color:#06FFA5>/bow</color>, <color:#06FFA5>/armor</color>, <color:#06FFA5>/drugs</color> to search players</color>"
+      - "<color:#ADB5BD>• Players have <color:#FFB3C6>10 seconds</color> to drop requested items</color>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/drugtest</color> to test for illegal substances</color>"
+      - "<color:#ADB5BD>• Successful searches earn you bonus off-duty time</color>"
+      - "<color:#ADB5BD>• Stay within <color:#FFB3C6>5 blocks</color> of the target during searches</color>"
+    
+    chase-system:
+      - "<gradient:#9D4EDD:#06FFA5>💡 Chase System Tips</gradient>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/chase <player></color> to start chasing a wanted player</color>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/chase capture</color> when close to arrest them</color>"
+      - "<color:#ADB5BD>• Chases automatically end if you get too far apart</color>"
+      - "<color:#ADB5BD>• Maximum chase distance is <color:#FFB3C6>100 blocks</color></color>"
+      - "<color:#ADB5BD>• You'll get warnings at <color:#FFB3C6>20 blocks</color> distance</color>"
+    
+    jail-system:
+      - "<gradient:#9D4EDD:#06FFA5>💡 Jail System Tips</gradient>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/jail <player></color> to arrest someone</color>"
+      - "<color:#ADB5BD>• Stay close during the <color:#FFB3C6>10-second</color> arrest countdown</color>"
+      - "<color:#ADB5BD>• Jail time is based on the player's wanted level</color>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/jailoffline</color> for offline players (admin only)</color>"
+      - "<color:#ADB5BD>• Successful arrests earn you bonus off-duty time</color>"
+    
+    banking-system:
+      - "<gradient:#9D4EDD:#06FFA5>💡 Duty Banking Tips</gradient>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/dutybank status</color> to check your balance</color>"
+      - "<color:#ADB5BD>• Use <color:#06FFA5>/dutybank convert</color> to exchange duty time for tokens</color>"
+      - "<color:#ADB5BD>• <color:#FFB3C6>100 seconds</color> of duty time = <color:#FFB3C6>1 token</color></color>"
+      - "<color:#ADB5BD>• Minimum conversion is <color:#FFB3C6>5 minutes</color> of duty time</color>"
+      - "<color:#ADB5BD>• Auto-conversion available for long duty sessions</color>"
+
+  # === DUTY SYSTEM ===
+  duty:
+    activation:
+      success: "<gradient:#51CF66:#7ED321>🛡️ Duty Activated</gradient> <color:#ADB5BD>You are now on duty and ready to serve!</color>"
+      already-on: "<gradient:#FFA94D:#FFB570>⚠️ Already On Duty</gradient> <color:#ADB5BD>You are already actively serving!</color>"
+      rank-detected: "<gradient:#06FFA5:#00E5FF>🏆 Rank Confirmed</gradient> <color:#ADB5BD>Guard rank detected: <color:#FFB3C6><rank></color></color>"
+      kit-given: "<gradient:#51CF66:#7ED321>⚔️ Equipment Issued</gradient> <color:#ADB5BD>You have been equipped with <color:#FFB3C6><kit></color> gear!</color>"
+    deactivation:
+      success: "<gradient:#ADB5BD:#868E96>🏠 Off Duty</gradient> <color:#ADB5BD>You are now off duty and can relax!</color>"
+      success-with-time: "<gradient:#ADB5BD:#868E96>🏠 Off Duty</gradient> <color:#ADB5BD>You are now off duty! Available time: <color:#FFB3C6><time></color></color>"
+      already-off: "<gradient:#FFA94D:#FFB570>⚠️ Already Off Duty</gradient> <color:#ADB5BD>You are already off duty!</color>"
+    earning:
+      base-time-earned: "<gradient:#51CF66:#7ED321>🎖️ Time Earned</gradient> <color:#ADB5BD>You've earned <color:#FFB3C6><time></color> of well-deserved off-duty time!</color>"
+      performance-bonus: "<gradient:#06FFA5:#00E5FF>⭐ Performance Bonus</gradient> <color:#ADB5BD>Extra <color:#FFB3C6><time></color> off-duty time earned for <color:#FFB3C6><reason></color>!</color>"
+    restrictions:
+      insufficient-time: "<gradient:#FFA94D:#FFB570>⏰ Cooldown Active</gradient> <color:#ADB5BD>You need to wait <color:#FFB3C6><time></color> before going on duty again!</color>"
+      cannot-during-chase: "<gradient:#FF6B6B:#FF8E8E>🏃 Chase Active</gradient> <color:#ADB5BD>You cannot go off duty while in a chase!</color>"
+      no-earned-off-duty-time: "<gradient:#FF6B6B:#FF8E8E>⏱️ No Break Time</gradient> <color:#ADB5BD>You haven't earned any off-duty time yet! Stay on duty longer to earn a break.</color>"
+      off-duty-time-expired: "<gradient:#FFA94D:#FFB570>⏰ Break Time Expired</gradient> <color:#ADB5BD>Your earned off-duty time has expired!</color>"
+      must-return-to-duty: "<gradient:#FF6B6B:#FF8E8E>🚨 Return to Duty</gradient> <color:#ADB5BD>You must return to duty. Use <color:#06FFA5>/duty</color> to go back on duty.</color>"
+      wrong-region: "<gradient:#FFA94D:#FFB570>📍 Wrong Location</gradient> <color:#ADB5BD>You must be in the guard station to activate duty!</color>"
+      no-rank: "<gradient:#FF6B6B:#FF8E8E>🏆 No Valid Rank</gradient> <color:#ADB5BD>You don't have a valid guard rank! Contact an administrator.</color>"
+      movement-cancelled: "<gradient:#FF6B6B:#FF8E8E>🚶 Movement Detected</gradient> <color:#ADB5BD>Duty activation cancelled - you moved during the countdown!</color>"
+      left-region: "<gradient:#FF6B6B:#FF8E8E>🚪 Left Region</gradient> <color:#ADB5BD>Duty activation cancelled - you left the guard station!</color>"
+      combat-active: "<gradient:#FFA94D:#FFB570>⚔️ Combat Active</gradient> <color:#ADB5BD>You cannot change duty status while in combat!</color>"
+      wanted-active: "<gradient:#FF6B6B:#FF8E8E>🚨 Wanted Status</gradient> <color:#ADB5BD>You cannot go on duty while wanted!</color>"
+
+  # === CHASE SYSTEM ===
+  chase:
+    start:
+      success: "<gradient:#FF6B6B:#FF3838>🏃 Chase Initiated</gradient> <color:#ADB5BD>Chase started on <color:#FFB3C6><target></color>!</color>"
+      target-notification: "<gradient:#FF6B6B:#FF3838>⚠️ Being Chased</gradient> <color:#ADB5BD>You are being chased by <color:#FFB3C6><guard></color>!</color>"
+      guard-alert: "<gradient:#FF6B6B:#FF3838>🚨 Chase Alert</gradient> <color:#FFB3C6><guard></color> started chasing <color:#FFB3C6><target></color>!"
+    end:
+      success: "<gradient:#ADB5BD:#868E96>🏁 Chase Ended</gradient> <color:#ADB5BD>Chase ended: <color:#FFB3C6><reason></color></color>"
+      target-notification: "<gradient:#ADB5BD:#868E96>🏁 Chase Over</gradient> <color:#ADB5BD>The chase has ended: <color:#FFB3C6><reason></color></color>"
+    capture:
+      success: "<gradient:#51CF66:#7ED321>🎯 Target Captured</gradient> <color:#ADB5BD>Target captured! Starting jail process...</color>"
+      target-notification: "<gradient:#FF6B6B:#FF8E8E>🚔 Captured</gradient> <color:#ADB5BD>You have been captured!</color>"
+    restrictions:
+      not-on-duty: "<gradient:#FF6B6B:#FF8E8E>🛡️ Not On Duty</gradient> <color:#ADB5BD>You must be on duty to start a chase!</color>"
+      target-not-wanted: "<gradient:#FF6B6B:#FF8E8E>🚫 Not Wanted</gradient> <color:#ADB5BD>That player is not wanted!</color>"
+      already-chasing: "<gradient:#FF6B6B:#FF8E8E>🏃 Already Chasing</gradient> <color:#ADB5BD>You are already in a chase!</color>"
+      target-being-chased: "<gradient:#FF6B6B:#FF8E8E>🏃 Target Busy</gradient> <color:#ADB5BD>That player is already being chased!</color>"
+      cannot-chase-self: "<gradient:#FF6B6B:#FF8E8E>🤔 Invalid Target</gradient> <color:#ADB5BD>You cannot chase yourself!</color>"
+      too-far: "<gradient:#FF6B6B:#FF8E8E>📏 Too Far</gradient> <color:#ADB5BD>Target is too far away to start a chase!</color>"
+      max-concurrent: "<gradient:#FF6B6B:#FF8E8E>🚦 Chase Limit</gradient> <color:#ADB5BD>Maximum concurrent chases reached!</color>"
+      capture-too-far: "<gradient:#FF6B6B:#FF8E8E>📏 Too Far</gradient> <color:#ADB5BD>You need to be closer to capture the target!</color>"
+      combat-timer-active: "<gradient:#FF6B6B:#FF8E8E>⚔️ Combat Timer</gradient> <color:#ADB5BD>Cannot capture during combat timer!</color>"
+      in-safe-zone: "<gradient:#FF6B6B:#FF8E8E>🛡️ Safe Zone</gradient> <color:#ADB5BD>Cannot chase in safe zones!</color>"
+    warnings:
+      distance: "<gradient:#FFA94D:#FFB570>⚠️ Distance Warning</gradient> <color:#ADB5BD>Target is <color:#FFB3C6><distance></color> blocks away!</color>"
+    blocking:
+      teleport: "<gradient:#FF6B6B:#FF8E8E>🚫 Teleport Blocked</gradient> <color:#ADB5BD>Teleportation is blocked during chase!</color>"
+      command: "<gradient:#FF6B6B:#FF8E8E>🚫 Command Blocked</gradient> <color:#ADB5BD>That command is blocked during chase!</color>"
+  
+  # === JAIL SYSTEM ===
+  jail:
+    countdown:
+      started: "<color:#FFB3C6>Jail countdown started for <player>! Stay close for <seconds> seconds.</color>"
+      target-notification: "<color:#FF6B6B>⚠ You are being arrested! Do not move for <seconds> seconds!</color>"
+      cancelled: "<color:#FF6B6B>Jail countdown cancelled: <reason></color>"
+      progress: "<color:#FF6B6B><seconds>...</color>"
+    arrest:
+      success: "<color:#51CF66>Successfully arrested <player> for <time> seconds!</color>"
+      target-notification: "<color:#FF6B6B>You have been arrested for <time> seconds!</color>"
+      offline-success: "<color:#51CF66>Successfully jailed offline player <player>!</color>"
+      guard-alert: "<guard> successfully arrested <target>!"
+    restrictions:
+      already-active: "<color:#FF6B6B>A jail countdown is already active for that player!</color>"
+
+  # === WANTED SYSTEM ===
+  wanted:
+    level:
+      set: "<color:#FFB3C6>Your wanted level has been set to <level> <stars>!</color>"
+      cleared: "<color:#51CF66>Your wanted level has been cleared!</color>"
+      increased: "<color:#FF6B6B>Your wanted level increased to <level> <stars>!</color>"
+      reason: "<color:#FFB3C6>Reason: <reason></color>"
+    restrictions:
+      guard-on-duty: "<color:#FF6B6B>Guards on duty cannot be set as wanted!</color>"
+    warnings:
+      attacking-guard: "<color:#FF6B6B>⚠ You are attacking a guard! Your wanted level may increase!</color>"
+    blocking:
+      teleport: "<color:#FF6B6B>Teleportation is blocked while you have a wanted level!</color>"
+    alerts:
+      guard-killed: "<player> killed guard <guard>!"
+
+  # === GUARD RESTRICTION MESSAGES ===
+  restrictions:
+    mining: "<color:#FF6B6B>Guards cannot mine while on duty!</color>"
+    crafting: "<color:#FF6B6B>Guards cannot craft while on duty!</color>"
+    storage: "<color:#FF6B6B>Guards cannot access storage while on duty!</color>"
+    dropping: "<color:#FF6B6B>Guards cannot drop items while on duty!</color>"
+
+  # === CONTRABAND SYSTEM ===
+  contraband:
+    disabled: "<gradient:#FF6B6B:#FF8E8E>🚫 System Disabled</gradient> <color:#ADB5BD>Contraband system is disabled!</color>"
+    request:
+      success: "<gradient:#06FFA5:#00E5FF>🔍 Search Initiated</gradient> <color:#ADB5BD>Contraband request sent to <color:#FFB3C6><player></color>: <color:#FFB3C6><description></color></color>"
+      target-notification: "<gradient:#FF6B6B:#FF3838>⚠️ CONTRABAND REQUEST</gradient> <color:#ADB5BD>Drop <color:#FFB3C6><description></color> within <color:#FFB3C6><seconds></color> seconds!</color>"
+      too-far: "<gradient:#FF6B6B:#FF8E8E>📏 Too Far</gradient> <color:#ADB5BD>Player is too far away to request contraband!</color>"
+      already-active: "<gradient:#FF6B6B:#FF8E8E>🔄 Request Active</gradient> <color:#ADB5BD>A contraband request is already active for that player!</color>"
+      not-on-duty: "<gradient:#FF6B6B:#FF8E8E>🛡️ Not On Duty</gradient> <color:#ADB5BD>You must be on duty to request contraband!</color>"
+    restrictions:
+      target-on-duty: "<gradient:#FF6B6B:#FF8E8E>🛡️ Guard Immunity</gradient> <color:#ADB5BD>You cannot target guards on duty!</color>"
+    detection:
+      found: "<gradient:#FF6B6B:#FF3838>⚠️ Contraband Detected</gradient> <color:#ADB5BD>Contraband detected: <color:#FFB3C6><item></color></color>"
+      compliance-request: "<gradient:#FFB3C6:#FF69B4>⏰ Compliance Required</gradient> <color:#ADB5BD>Drop all contraband items within <color:#FFB3C6><seconds></color> seconds!</color>"
+      compliance-success: "<gradient:#51CF66:#7ED321>✅ Compliance Success</gradient> <color:#ADB5BD>Contraband compliance successful!</color>"
+      compliance-failed: "<gradient:#FF6B6B:#FF8E8E>❌ Compliance Failed</gradient> <color:#ADB5BD>Contraband compliance failed! Wanted level increased!</color>"
+      item-dropped: "<gradient:#51CF66:#7ED321>📦 Item Dropped</gradient> <color:#ADB5BD>Required item dropped: <color:#FFB3C6><item></color></color>"
+      request-completed: "<gradient:#51CF66:#7ED321>✅ Search Complete</gradient> <color:#ADB5BD>Contraband request completed successfully!</color>"
+      timeout: "<gradient:#FF6B6B:#FF8E8E>⏰ Request Timeout</gradient> <color:#ADB5BD>Contraband request timed out! Wanted level increased!</color>"
+    drug-test:
+      positive: "<gradient:#FF6B6B:#FF3838>⚠️ Positive Result</gradient> <color:#ADB5BD>Drug test positive for <color:#FFB3C6><drug></color>!</color>"
+      negative: "<gradient:#51CF66:#7ED321>✅ Negative Result</gradient> <color:#ADB5BD>Drug test negative.</color>"
+      kit-used: "<gradient:#FFB3C6:#FF69B4>🧪 Test Kit Used</gradient> <color:#ADB5BD>Drug test kit used on <color:#FFB3C6><player></color></color>"
+
+  # === COMBAT TIMER ===
+  combat:
+    timer-started: "<color:#FF6B6B>⚔ Combat timer activated!</color>"
+    timer-ended: "<color:#51CF66>Combat timer expired.</color>"
+    teleport-blocked: "<color:#FF6B6B>Teleportation blocked during combat!</color>"
+
+  # === DUTY BANKING ===
+  banking:
+    status: "<color:#06FFA5>Duty Time: <time> | Available: <tokens> tokens</color>"
+    conversion-success: "<color:#51CF66>Converted <time> duty time to <tokens> tokens!</color>"
+    insufficient-time: "<color:#FF6B6B>Insufficient duty time for conversion! Minimum: <minimum></color>"
+    auto-conversion: "<color:#06FFA5>Auto-converted <time> duty time to <tokens> tokens!</color>"
+    disabled: "<color:#FF6B6B>Duty banking is disabled!</color>"
+
+  # === ACTION BAR MESSAGES ===
+  actionbar:
+    duty-activated: "<color:#51CF66>✓ On Duty</color>"
+    duty-deactivated: "<color:#ADB5BD>✗ Off Duty</color>"
+    contraband-compliance: "<color:#51CF66>✓ Contraband Compliance</color>"
+    chase-started: "<color:#FF6B6B>🏃 Chase Active</color>"
+    combat-active: "<color:#FF6B6B>⚔ Combat Timer</color>"
+    banking-available: "<color:#06FFA5>💰 <tokens> tokens available (<time> banked)</color>"
+
+  # === BOSS BAR MESSAGES ===
+  bossbar:
+    wanted:
+      active: "⭐ WANTED LEVEL <level> <stars> - <time> remaining"
+    chase:
+      target: "🏃 BEING CHASED by <guard> - Distance: <distance>m"
+      guard: "🏃 CHASING <target> - Distance: <distance>m"
+    grace-period: "⏰ Grace Period: <time> remaining"
+    combat-timer: "⚔ Combat Timer: <time> remaining"
+    jail-countdown: "⏳ ARREST IN PROGRESS: <time> remaining"
+    duty-transition: "⏳ Activating Duty: <time> remaining - Stay still!"
+    contraband-countdown: "⚠ <description>: <time> remaining"
+
+  # === COMMAND HELP MESSAGES ===
+  help:
+    corrections:
+      header: "<gradient:#9D4EDD:#06FFA5>╔═══════════════════════════════════════════════════════════════╗</gradient>"
+      title: "<gradient:#9D4EDD:#06FFA5>          🚔 EDENCORRECTIONS ADMIN COMMANDS 🚔</gradient>"
+      divider: "<gradient:#9D4EDD:#06FFA5>╠═══════════════════════════════════════════════════════════════╣</gradient>"
+      wanted: "<gradient:#06FFA5:#00E5FF>🚨 /corrections wanted</gradient> <color:#FFB3C6><set|clear|check|list></color> <color:#ADB5BD>- Manage wanted levels</color>"
+      chase: "<gradient:#06FFA5:#00E5FF>🏃 /corrections chase</gradient> <color:#FFB3C6><list|end|endall></color> <color:#ADB5BD>- Manage chase system</color>"
+      duty: "<gradient:#06FFA5:#00E5FF>🛡️ /corrections duty</gradient> <color:#FFB3C6><force|time|list></color> <color:#ADB5BD>- Manage duty system</color>"
+      player: "<gradient:#06FFA5:#00E5FF>👤 /corrections player</gradient> <color:#FFB3C6><info|reset></color> <color:#ADB5BD>- Player management</color>"
+      system: "<gradient:#06FFA5:#00E5FF>⚙️ /corrections system</gradient> <color:#FFB3C6><stats|debug></color> <color:#ADB5BD>- System information</color>"
+      reload: "<gradient:#06FFA5:#00E5FF>🔄 /corrections reload</gradient> <color:#ADB5BD>- Reload configuration</color>"
+      help: "<gradient:#06FFA5:#00E5FF>❓ /corrections help</gradient> <color:#ADB5BD>- Show this help</color>"
+      footer: "<gradient:#9D4EDD:#06FFA5>╚═══════════════════════════════════════════════════════════════╝</gradient>"
+
+  # === ADMIN COMMAND MESSAGES ===
+  admin:
+    wanted:
+      set-success: "<color:#51CF66>Set <player>'s wanted level to <level> stars!</color>"
+      clear-success: "<color:#51CF66>Cleared <player>'s wanted level!</color>"
+      check-result: "<color:#FFB3C6><player> has wanted level <level> <stars></color>"
+      check-time: "<color:#FFB3C6>Time remaining: <time></color>"
+      check-reason: "<color:#FFB3C6>Reason: <reason></color>"
+      check-none: "<color:#51CF66><player> has no wanted level.</color>"
+      list-header: "<color:#9D4EDD>═══════════════ Wanted Players ═══════════════</color>"
+      list-none: "<color:#ADB5BD>No wanted players found.</color>"
+      list-entry: "<color:#FFB3C6><player></color> <color:#ADB5BD>- Level</color> <color:#FF6B6B><level> <stars></color> <color:#ADB5BD>(<time>)</color>"
+    chase:
+      list-header: "<color:#9D4EDD>═══════════════ Active Chases ═══════════════</color>"
+      list-none: "<color:#ADB5BD>No active chases found.</color>"
+      list-entry: "<color:#FFB3C6><guard></color> <color:#ADB5BD>→</color> <color:#FF6B6B><target></color> <color:#ADB5BD>(<time>)</color>"
+      end-success: "<color:#51CF66>Ended chase for <guard>!</color>"
+      end-all-success: "<color:#51CF66>Ended <count> active chases!</color>"
+      not-in-chase: "<color:#FF6B6B><guard> is not in a chase!</color>"
+    duty:
+      list-header: "<color:#9D4EDD>═══════════════ Guard Duty Status ═══════════════</color>"
+      list-on-duty: "<color:#FFB3C6><player></color> <color:#ADB5BD>-</color> <color:#51CF66>On duty</color>"
+      list-off-duty: "<color:#FFB3C6><player></color> <color:#ADB5BD>-</color> <color:#FF6B6B>Off duty</color>"
+    system:
+      stats-header: "<color:#9D4EDD>═══════════════ System Statistics ═══════════════</color>"
+      stats-online: "<color:#FFB3C6>Online Players:</color> <color:#06FFA5><online>/<max></color>"
+      stats-chases: "<color:#FFB3C6>Active Chases:</color> <color:#06FFA5><count></color>"
+      stats-debug: "<color:#FFB3C6>Debug Mode:</color> <status>"
+      debug-status-enabled: "<color:#51CF66>Enabled</color>"
+      debug-status-disabled: "<color:#FF6B6B>Disabled</color>"
+      debug-enabled: "<color:#51CF66>Debug mode enabled!</color>"
+      debug-disabled: "<color:#FF6B6B>Debug mode disabled!</color>" 
