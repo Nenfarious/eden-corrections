@@ -1,0 +1,145 @@
+name: EdenCorrections
+version: '2.0.0'
+description: Professional guard system with LuckPerms integration, WorldGuard regions, combat timers, contraband enforcement, and duty banking
+author: LSDMC
+website: https://lsdmc.dev
+main: dev.lsdmc.edenCorrections.EdenCorrections
+api-version: '1.21'
+softdepend: [CMI, LuckPerms, Vault, WorldGuard, PlaceholderAPI, CoinsEngine]
+
+commands:
+  duty:
+    description: Toggle guard duty status
+    usage: /duty
+    permission: edencorrections.guard.duty
+    permission-message: You don't have permission to use this command!
+  
+  chase:
+    description: Start or manage chases
+    usage: /chase <player|capture|end>
+    permission: edencorrections.guard.chase
+    permission-message: You don't have permission to use this command!
+    
+  jail:
+    description: Jail a player
+    usage: /jail <player> [reason]
+    permission: edencorrections.guard.jail
+    permission-message: You don't have permission to use this command!
+    
+  jailoffline:
+    description: Jail an offline player
+    usage: /jailoffline <player> [reason]
+    permission: edencorrections.guard.admin
+    permission-message: You don't have permission to use this command!
+    
+  corrections:
+    description: Admin commands for EdenCorrections
+    usage: /corrections <wanted|chase|duty|player|system|reload|help>
+    permission: edencorrections.admin
+    permission-message: You don't have permission to use this command!
+
+  edenreload:
+    description: Reload EdenCorrections configuration
+    usage: /edenreload
+    permission: edencorrections.admin
+    permission-message: You don't have permission to use this command!
+
+  sword:
+    description: Request player to drop their sword
+    usage: /sword <player>
+    permission: edencorrections.guard.contraband
+    permission-message: You don't have permission to use this command!
+    
+  bow:
+    description: Request player to drop their bow
+    usage: /bow <player>
+    permission: edencorrections.guard.contraband
+    permission-message: You don't have permission to use this command!
+    
+  armor:
+    description: Request player to drop their armor
+    usage: /armor <player>
+    permission: edencorrections.guard.contraband
+    permission-message: You don't have permission to use this command!
+    
+  drugs:
+    description: Request player to drop drugs
+    usage: /drugs <player>
+    permission: edencorrections.guard.contraband
+    permission-message: You don't have permission to use this command!
+    
+  drugtest:
+    description: Perform drug test on player
+    usage: /drugtest <player>
+    permission: edencorrections.guard.contraband
+    permission-message: You don't have permission to use this command!
+    
+  dutybank:
+    description: Manage duty time banking and conversion
+    usage: /dutybank <convert|status>
+    permission: edencorrections.guard.banking
+    permission-message: You don't have permission to use this command!
+    
+  tips:
+    description: Show helpful tips for using the corrections system
+    usage: /tips [duty|contraband|chase|jail|banking]
+    permission: edencorrections.guard
+    permission-message: You don't have permission to use this command!
+
+permissions:
+  edencorrections.*:
+    description: Full access to all EdenCorrections features
+    default: op
+    children:
+      edencorrections.guard.*: true
+      edencorrections.admin.*: true
+      
+  edencorrections.guard.*:
+    description: All guard permissions
+    default: false
+    children:
+      edencorrections.guard: true
+      edencorrections.guard.duty: true
+      edencorrections.guard.chase: true
+      edencorrections.guard.jail: true
+      edencorrections.guard.contraband: true
+      edencorrections.guard.banking: true
+      edencorrections.guard.admin: true
+      
+  edencorrections.guard:
+    description: Base guard permission
+    default: false
+    
+  edencorrections.guard.duty:
+    description: Permission to use duty commands
+    default: false
+    
+  edencorrections.guard.chase:
+    description: Permission to start chases
+    default: false
+    
+  edencorrections.guard.jail:
+    description: Permission to jail players
+    default: false
+    
+  edencorrections.guard.contraband:
+    description: Permission to request contraband and perform drug tests
+    default: false
+    
+  edencorrections.guard.banking:
+    description: Permission to use duty time banking system
+    default: false
+    
+  edencorrections.guard.admin:
+    description: Administrative guard permissions
+    default: false
+    
+  edencorrections.admin.*:
+    description: All administrative permissions
+    default: op
+    children:
+      edencorrections.admin: true
+      
+  edencorrections.admin:
+    description: Full administrative access to EdenCorrections
+    default: op
