@@ -106,8 +106,4 @@ Don’t worry, the full `config.yml` is heavily commented.
 
 More in `/plugins/EdenCorrections/placeholder_list.txt` (generated on first run).
 
----
-
-## Contributing / Bugs
-
-Open an issue, attach logs, include steps – we’ll look after our inmates. 
+-
