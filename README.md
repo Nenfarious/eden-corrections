@@ -1,6 +1,6 @@
 # EdenCorrections
 
-A comprehensive corrections and prison management system for Minecraft servers. EdenCorrections provides a complete guard duty system with dynamic wanted levels, chase mechanics, contraband management, and integrated economy features.
+A fully custom guard management system for Eden Prison S4. EdenCorrections provides a complete guard duty system with dynamic wanted levels, chase mechanics, contraband management, and integrated economy features.
 
 ## Features
 
