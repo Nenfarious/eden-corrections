@@ -368,14 +368,16 @@ public class DutyManager {
         // Hide boss bar
         plugin.getBossBarManager().hideBossBarByType(player, "duty");
         
-        // Send success message
-        plugin.getMessageManager().sendMessage(player, "duty.activation.success");
+        // Send success message with rank
+        plugin.getMessageManager().sendMessage(player, "duty.activation.success",
+            stringPlaceholder("rank", guardRank));
         
         // Give appropriate kit
         giveGuardKit(player, guardRank);
         
-        // Send action bar confirmation
-        plugin.getMessageManager().sendActionBar(player, "actionbar.duty-activated");
+        // Send action bar confirmation with rank
+        plugin.getMessageManager().sendActionBar(player, "action-bar.duty-activated",
+            stringPlaceholder("rank", guardRank));
         
         logger.info(player.getName() + " went on duty as " + guardRank);
     }
@@ -452,7 +454,7 @@ public class DutyManager {
             timePlaceholder("time", availableMinutes * 60L));
         
         // Send action bar confirmation
-        plugin.getMessageManager().sendActionBar(player, "actionbar.duty-deactivated");
+        plugin.getMessageManager().sendActionBar(player, "action-bar.duty-deactivated");
         
         // Notify duty banking system if enabled
         if (plugin.getConfigManager().isDutyBankingEnabled()) {

@@ -355,10 +355,12 @@ messages:
   # === DUTY SYSTEM ===
   duty:
     activation:
-      success: "<gradient:#51CF66:#7ED321>🛡️ Duty Activated</gradient> <color:#ADB5BD>You are now on duty and ready to serve!</color>"
+      success: "<gradient:#51CF66:#7ED321>🛡️ Duty Activated</gradient> <color:#ADB5BD>You are now on duty as <color:#FFB3C6><rank></color> and ready to serve!</color>"
       already-on: "<gradient:#FFA94D:#FFB570>⚠️ Already On Duty</gradient> <color:#ADB5BD>You are already actively serving!</color>"
       rank-detected: "<gradient:#06FFA5:#00E5FF>🏆 Rank Confirmed</gradient> <color:#ADB5BD>Guard rank detected: <color:#FFB3C6><rank></color></color>"
       kit-given: "<gradient:#51CF66:#7ED321>⚔️ Equipment Issued</gradient> <color:#ADB5BD>You have been equipped with <color:#FFB3C6><kit></color> gear!</color>"
+      kit-given-fallback: "<gradient:#51CF66:#7ED321>⚔️ Basic Equipment</gradient> <color:#ADB5BD>You have been equipped with basic guard gear!</color>"
+      kit-failed: "<gradient:#FF6B6B:#FF8E8E>⚔️ Equipment Failed</gradient> <color:#ADB5BD>Failed to give guard equipment! Contact an administrator.</color>"
     deactivation:
       success: "<gradient:#ADB5BD:#868E96>🏠 Off Duty</gradient> <color:#ADB5BD>You are now off duty and can relax!</color>"
       success-with-time: "<gradient:#ADB5BD:#868E96>🏠 Off Duty</gradient> <color:#ADB5BD>You are now off duty! Available time: <color:#FFB3C6><time></color></color>"
@@ -509,8 +511,8 @@ messages:
     disabled: "<color:#FF6B6B>Duty banking is disabled!</color>"
 
   # === ACTION BAR MESSAGES ===
-  actionbar:
-    duty-activated: "<color:#51CF66>✓ On Duty</color>"
+  action-bar:
+    duty-activated: "<color:#51CF66>✓ On Duty as <rank></color>"
     duty-deactivated: "<color:#ADB5BD>✗ Off Duty</color>"
     contraband-compliance: "<color:#51CF66>✓ Contraband Compliance</color>"
     contraband-request: "<gradient:#FFE066:#FFD43B>⚠️ Drop <description> within <seconds>s!</gradient>"
@@ -530,6 +532,7 @@ messages:
     jail-countdown: "<gradient:#9D4EDD:#7C3AED>⏳ ARREST IN PROGRESS</gradient> <color:#ADB5BD><time> remaining</color>"
     duty-transition: "<gradient:#51CF66:#7ED321>⏳ Activating Duty</gradient> <color:#ADB5BD><time> remaining - Stay still!</color>"
     contraband-countdown: "<gradient:#FFE066:#FFD43B>⚠ <description></gradient> <color:#ADB5BD><time> remaining</color>"
+    penalty: "<gradient:#FF6B6B:#FF3838>⚠️ PENALTY</gradient> <color:#ADB5BD><time> remaining</color>"
 
   # === COMMAND HELP MESSAGES ===
   help:
