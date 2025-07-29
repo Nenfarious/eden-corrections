@@ -960,6 +960,62 @@ public class ConfigManager {
         return config.getString("bossbars.grace.overlay", "PROGRESS");
     }
     
+    // === GUARD TAG CONFIGURATION ===
+    
+    public int getGuardTagPriority() {
+        return (Integer) getConfigValue("guard-tags.priority", 1000);
+    }
+    
+    public String getGuardTagFormat() {
+        return getConfigValue("guard-tags.format", "<gradient:#9D4EDD:#06FFA5>[ON DUTY]</gradient> ").toString();
+    }
+    
+    public String getGuardTagHoverFormat() {
+        return getConfigValue("guard-tags.hover.format", 
+            "<gray>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "<gradient:#9D4EDD:#06FFA5><bold>CORRECTIONAL OFFICER</bold></gradient>\n" +
+            "<gray>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "<gray>Rank: <aqua>%s\n" +
+            "<gray>Status: <green><bold>ON DUTY</bold></green>\n" +
+            "<gray>Total Arrests: <green>%d\n" +
+            "<gray>Total Violations: <red>%d\n" +
+            "<gray>Total Duty Time: <yellow>%s\n" +
+            "<gray>Session Searches: <cyan>%d\n" +
+            "<gray>Session Arrests: <green>%d\n" +
+            "<gray>Session Detections: <yellow>%d\n" +
+            "<gray>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━").toString();
+    }
+    
+    public boolean isGuardTagHoverEnabled() {
+        return (Boolean) getConfigValue("guard-tags.hover.enabled", true);
+    }
+    
+    public boolean isGuardTagShowSessionStats() {
+        return (Boolean) getConfigValue("guard-tags.show-session-stats", true);
+    }
+    
+    public boolean isGuardTagShowTotalStats() {
+        return (Boolean) getConfigValue("guard-tags.show-total-stats", true);
+    }
+    
+    // === SPAM CONTROL CONFIGURATION ===
+    
+    public int getSpamControlCommandCooldown() {
+        return (Integer) getConfigValue("spam-control.command-cooldown", 1000);
+    }
+    
+    public int getSpamControlMessageCooldown() {
+        return (Integer) getConfigValue("spam-control.message-cooldown", 500);
+    }
+    
+    public int getSpamControlMaxSpamCount() {
+        return (Integer) getConfigValue("spam-control.max-spam-count", 5);
+    }
+    
+    public int getSpamControlSpamTimeout() {
+        return (Integer) getConfigValue("spam-control.spam-timeout", 10000);
+    }
+
     // === UTILITY METHODS ===
     
     public void setDebugMode(boolean debug) {

@@ -10,10 +10,16 @@ import dev.lsdmc.edenCorrections.managers.ContrabandManager;
 import dev.lsdmc.edenCorrections.managers.DutyBankingManager;
 import dev.lsdmc.edenCorrections.managers.SecurityManager;
 import dev.lsdmc.edenCorrections.managers.BossBarManager;
+import dev.lsdmc.edenCorrections.managers.GuardLootManager;
+import dev.lsdmc.edenCorrections.managers.GuardTagManager;
+import dev.lsdmc.edenCorrections.managers.SpamControlManager;
 import dev.lsdmc.edenCorrections.storage.DataManager;
 import dev.lsdmc.edenCorrections.events.GuardEventHandler;
 import dev.lsdmc.edenCorrections.commands.CommandHandler;
 import dev.lsdmc.edenCorrections.integrations.EdenCorrectionsExpansion;
+import dev.lsdmc.edenCorrections.integrations.CMIIntegration;
+import dev.lsdmc.edenCorrections.integrations.UNTIntegration;
+import dev.lsdmc.edenCorrections.integrations.VaultEconomyManager;
 import dev.lsdmc.edenCorrections.utils.WorldGuardUtils;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
@@ -43,6 +49,9 @@ public class EdenCorrections extends JavaPlugin {
     // Security and UI managers
     private SecurityManager securityManager;
     private BossBarManager bossBarManager;
+    private GuardLootManager guardLootManager;
+    private GuardTagManager guardTagManager;
+    private SpamControlManager spamControlManager;
     
     // Event handler
     private GuardEventHandler eventHandler;
@@ -53,6 +62,11 @@ public class EdenCorrections extends JavaPlugin {
     // PlaceholderAPI integration
     private EdenCorrectionsExpansion placeholderExpansion;
     
+    // External integrations
+    private CMIIntegration cmiIntegration;
+    private UNTIntegration untIntegration;
+    private VaultEconomyManager vaultEconomyManager;
+
     @Override
     public void onEnable() {
         instance = this;
@@ -123,6 +137,47 @@ public class EdenCorrections extends JavaPlugin {
         
         if (eventHandler != null) {
             logger.info("Cleaning up event handler...");
+        }
+        
+        // Clean up external integrations first
+        if (vaultEconomyManager != null) {
+            logger.info("Cleaning up VaultEconomyManager...");
+            // VaultEconomyManager cleanup can be added if needed
+        }
+        
+        if (untIntegration != null) {
+            try {
+                untIntegration.cleanupAllTags();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up UNTIntegration: " + e.getMessage());
+            }
+        }
+        
+        if (cmiIntegration != null) {
+            logger.info("Cleaning up CMIIntegration...");
+            // CMIIntegration cleanup can be added if needed
+        }
+        
+        // Clean up managers
+        if (spamControlManager != null) {
+            try {
+                spamControlManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up SpamControlManager: " + e.getMessage());
+            }
+        }
+        
+        if (guardTagManager != null) {
+            try {
+                guardTagManager.cleanupAllGuardTags();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up GuardTagManager: " + e.getMessage());
+            }
+        }
+        
+        if (guardLootManager != null) {
+            logger.info("Cleaning up GuardLootManager...");
+            // GuardLootManager cleanup can be added if needed
         }
         
         if (dutyBankingManager != null) {
@@ -242,6 +297,14 @@ public class EdenCorrections extends JavaPlugin {
         // Initialize security and UI managers
         securityManager = new SecurityManager(this);
         bossBarManager = new BossBarManager(this);
+        guardLootManager = new GuardLootManager(this);
+        guardTagManager = new GuardTagManager(this);
+        spamControlManager = new SpamControlManager(this);
+        
+        // Initialize external integrations
+        cmiIntegration = new CMIIntegration(this);
+        untIntegration = new UNTIntegration(this);
+        vaultEconomyManager = new VaultEconomyManager(this);
         
         // Initialize managers
         dutyManager.initialize();
@@ -252,6 +315,14 @@ public class EdenCorrections extends JavaPlugin {
         dutyBankingManager.initialize();
         securityManager.initialize();
         bossBarManager.initialize();
+        guardLootManager.initialize();
+        guardTagManager.initialize();
+        spamControlManager.initialize();
+        
+        // Initialize integrations
+        cmiIntegration.initialize();
+        untIntegration.initialize();
+        vaultEconomyManager.initialize();
     }
     
     private void registerEventsAndCommands() {
@@ -572,5 +643,29 @@ public class EdenCorrections extends JavaPlugin {
     
     public BossBarManager getBossBarManager() {
         return bossBarManager;
+    }
+
+    public GuardLootManager getGuardLootManager() {
+        return guardLootManager;
+    }
+
+    public GuardTagManager getGuardTagManager() {
+        return guardTagManager;
+    }
+
+    public SpamControlManager getSpamControlManager() {
+        return spamControlManager;
+    }
+
+    public CMIIntegration getCmiIntegration() {
+        return cmiIntegration;
+    }
+
+    public UNTIntegration getUNTIntegration() {
+        return untIntegration;
+    }
+
+    public VaultEconomyManager getVaultEconomyManager() {
+        return vaultEconomyManager;
     }
 } 
