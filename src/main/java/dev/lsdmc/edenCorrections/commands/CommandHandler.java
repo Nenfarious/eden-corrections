@@ -807,7 +807,10 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     private boolean handleReloadCommand(CommandSender sender, String[] args) {
         try {
             plugin.reload();
-            plugin.getMessageManager().sendMessage(sender, "system.reload-success");
+            // Ensure reload is complete before sending message
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                plugin.getMessageManager().sendMessage(sender, "system.reload-success");
+            }, 1L); // 1 tick delay to ensure reload is complete
         } catch (Exception e) {
             plugin.getMessageManager().sendMessage(sender, "system.reload-failed",
                 stringPlaceholder("error", e.getMessage()));

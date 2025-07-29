@@ -123,7 +123,7 @@ public class DutyBankingManager {
             // Only show notification if they have at least 5 tokens worth of time
             if (availableTokens >= 5) {
                 // Send a subtle notification instead of a message
-                plugin.getMessageManager().sendActionBar(player, "actionbar.banking-available", 
+                plugin.getMessageManager().sendActionBar(player, "action-bar.banking-available", 
                     MessageManager.timePlaceholder("time", totalDutyTime),
                     MessageManager.numberPlaceholder("tokens", availableTokens));
             }

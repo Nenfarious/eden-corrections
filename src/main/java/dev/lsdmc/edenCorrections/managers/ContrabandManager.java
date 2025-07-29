@@ -125,7 +125,7 @@ public class ContrabandManager {
         plugin.getBossBarManager().showContrabandBossBar(target, timeout, description);
         
         // Send action bar notification
-        plugin.getMessageManager().sendActionBar(target, "actionbar.contraband-request",
+        plugin.getMessageManager().sendActionBar(target, "action-bar.contraband-request",
             stringPlaceholder("description", description),
             numberPlaceholder("seconds", timeout));
         
@@ -202,7 +202,7 @@ public class ContrabandManager {
             if (compliant) {
                 // Success - player complied and dropped contraband
                 plugin.getMessageManager().sendMessage(target, "contraband.detection.compliance-success");
-                plugin.getMessageManager().sendActionBar(target, "actionbar.contraband-compliance");
+                plugin.getMessageManager().sendActionBar(target, "action-bar.contraband-compliance");
                 
                 // Player is free to go - no wanted level increase
                 logger.info("Contraband compliance successful: " + target.getName() + " dropped " + request.getDescription());

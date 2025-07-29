@@ -122,7 +122,7 @@ public class ChaseManager {
         plugin.getBossBarManager().showCombatBossBar(player, duration);
         
         // Send action bar notification
-        plugin.getMessageManager().sendActionBar(player, "actionbar.combat-active");
+        plugin.getMessageManager().sendActionBar(player, "action-bar.combat-active");
         
         // Send combat message
         plugin.getMessageManager().sendMessage(player, "combat.timer-started");
