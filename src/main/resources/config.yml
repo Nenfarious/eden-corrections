@@ -600,4 +600,58 @@ messages:
       chase-protected: "<gradient:#FF6B6B:#FF8E8E>🛡️ Guard Immunity</gradient> <color:#ADB5BD>Guards on duty cannot be chased!</color>"
       contraband-protected: "<gradient:#FF6B6B:#FF8E8E>🛡️ Guard Immunity</gradient> <color:#ADB5BD>Guards on duty cannot be targeted for contraband!</color>"
       jail-protected: "<gradient:#FF6B6B:#FF8E8E>🛡️ Guard Immunity</gradient> <color:#ADB5BD>Guards on duty cannot be jailed!</color>"
-    violation-alert: "<gradient:#FF6B6B:#FF3838>🚨 SECURITY VIOLATION</gradient> <color:#ADB5BD><perpetrator> attempted <action> on protected guard <target>!</color>" 
+    violation-alert: "<gradient:#FF6B6B:#FF3838>🚨 SECURITY VIOLATION</gradient> <color:#ADB5BD><perpetrator> attempted <action> on protected guard <target>!</color>"
+
+# ==================================================================
+# ADDITIONAL SYSTEM CONFIGURATIONS
+# ==================================================================
+
+# Guard tag system configuration
+guard-tags:
+  # LuckPerms prefix priority for guard tags
+  priority: 1000
+  
+  # Tag format (supports MiniMessage format)
+  format: "<gradient:#9D4EDD:#06FFA5>[ON DUTY]</gradient> "
+  
+  # Hover effect configuration
+  hover:
+    enabled: true
+    format: |
+      <gray>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      <gradient:#9D4EDD:#06FFA5><bold>CORRECTIONAL OFFICER</bold></gradient>
+      <gray>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      <gray>Rank: <aqua>%s
+      <gray>Status: <green><bold>ON DUTY</bold></green>
+      <gray>Total Arrests: <green>%d
+      <gray>Total Violations: <red>%d
+      <gray>Total Duty Time: <yellow>%s
+      <gray>Session Searches: <cyan>%d
+      <gray>Session Arrests: <green>%d
+      <gray>Session Detections: <yellow>%d
+      <gray>━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  
+  # Statistics to show in hover
+  show-session-stats: true
+  show-total-stats: true
+
+# Spam control system
+spam-control:
+  # Command cooldown in milliseconds
+  command-cooldown: 1000
+  
+  # Message cooldown in milliseconds
+  message-cooldown: 500
+  
+  # Maximum spam attempts before warning
+  max-spam-count: 5
+  
+  # Timeout for spam counter reset in milliseconds
+  spam-timeout: 10000
+  
+  # Spam control messages
+  messages:
+    command-spam-warning: "<gradient:#FF6B6B:#FF8E8E>🚫 Command Spam</gradient> <color:#ADB5BD>You are sending commands too quickly! Please slow down.</color>"
+    command-cooldown: "<gradient:#FFA94D:#FFB570>⏳ Command Cooldown</gradient> <color:#ADB5BD>Please wait before using the command <color:#FFB3C6><command></color> again!</color>"
+    message-spam-warning: "<gradient:#FF6B6B:#FF8E8E>🚫 Message Spam</gradient> <color:#ADB5BD>You are sending messages too quickly! Please slow down.</color>"
+    message-cooldown: "<gradient:#FFA94D:#FFB570>⏳ Message Cooldown</gradient> <color:#ADB5BD>Please wait before sending another message!</color>" 
