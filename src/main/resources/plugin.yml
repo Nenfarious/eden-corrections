@@ -38,12 +38,6 @@ commands:
     permission: edencorrections.admin
     permission-message: You don't have permission to use this command!
 
-  edenreload:
-    description: Reload EdenCorrections configuration
-    usage: /edenreload
-    permission: edencorrections.admin
-    permission-message: You don't have permission to use this command!
-
   sword:
     description: Request player to drop their sword
     usage: /sword <player>

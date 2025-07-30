@@ -48,9 +48,6 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         plugin.getCommand("corrections").setExecutor(this);
         plugin.getCommand("corrections").setTabCompleter(this);
         
-        plugin.getCommand("edenreload").setExecutor(this);
-        plugin.getCommand("edenreload").setTabCompleter(this);
-        
         // Register contraband commands
         plugin.getCommand("sword").setExecutor(this);
         plugin.getCommand("sword").setTabCompleter(this);
@@ -97,8 +94,6 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleJailOfflineCommand(sender, args);
             case "corrections":
                 return handleCorrectionsCommand(sender, args);
-            case "edenreload":
-                return handleReloadCommand(sender, args);
             // Contraband commands
             case "sword":
                 return handleContrabandCommand(sender, "sword", args);
@@ -136,8 +131,6 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleJailOfflineTabComplete(sender, args);
             case "corrections":
                 return handleCorrectionsTabComplete(sender, args);
-            case "edenreload":
-                return new ArrayList<>(); // No arguments
             case "sword":
             case "bow":
             case "armor":
