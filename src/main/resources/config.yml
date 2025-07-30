@@ -442,27 +442,27 @@ messages:
   # === WANTED SYSTEM ===
   wanted:
     level:
-      set: "<color:#FFB3C6>Your wanted level has been set to <level> <stars>!</color>"
-      cleared: "<color:#51CF66>Your wanted level has been cleared!</color>"
-      increased: "<color:#FF6B6B>Your wanted level increased to <level> <stars>!</color>"
-      reason: "<color:#FFB3C6>Reason: <reason></color>"
+      set: "<gradient:#FFB3C6:#FF69B4>⭐ Wanted Level Set</gradient> <color:#ADB5BD>Your wanted level has been set to <color:#FFB3C6><level></color> <color:#FFB3C6><stars></color>!</color>"
+      cleared: "<gradient:#51CF66:#7ED321>✅ Wanted Cleared</gradient> <color:#ADB5BD>Your wanted level has been cleared!</color>"
+      increased: "<gradient:#FF6B6B:#FF3838>⬆️ Wanted Increased</gradient> <color:#ADB5BD>Your wanted level increased to <color:#FFB3C6><level></color> <color:#FFB3C6><stars></color>!</color>"
+      reason: "<gradient:#FFB3C6:#FF69B4>📝 Reason</gradient> <color:#ADB5BD>Reason: <color:#FFB3C6><reason></color></color>"
     glow:
-      notification: "<gradient:#FF6B6B:#FF3838>🔴 HIGH WANTED TARGET</gradient> <color:#ADB5BD><color:#FFB3C6><player></color> is now glowing (Level <level>)!</color>"
+      notification: "<gradient:#FF6B6B:#FF3838>🔴 HIGH WANTED TARGET</gradient> <color:#ADB5BD><color:#FFB3C6><player></color> is now glowing (Level <color:#FFB3C6><level></color>)!</color>"
     restrictions:
-      guard-on-duty: "<color:#FF6B6B>Guards on duty cannot be set as wanted!</color>"
+      guard-on-duty: "<gradient:#FF6B6B:#FF8E8E>🛡️ Guard Immunity</gradient> <color:#ADB5BD>Guards on duty cannot be set as wanted!</color>"
     warnings:
-      attacking-guard: "<color:#FF6B6B>⚠ You are attacking a guard! Your wanted level may increase!</color>"
+      attacking-guard: "<gradient:#FFA94D:#FFB570>⚠️ Warning</gradient> <color:#ADB5BD>You are attacking a guard! Your wanted level may increase!</color>"
     blocking:
-      teleport: "<color:#FF6B6B>Teleportation is blocked while you have a wanted level!</color>"
+      teleport: "<gradient:#FF6B6B:#FF8E8E>🚫 Teleport Blocked</gradient> <color:#ADB5BD>Teleportation is blocked while you have a wanted level!</color>"
     alerts:
-      guard-killed: "<player> killed guard <guard>!"
+      guard-killed: "<gradient:#FF6B6B:#FF3838>💀 Guard Killed</gradient> <color:#ADB5BD><color:#FFB3C6><player></color> killed guard <color:#FFB3C6><guard></color>!</color>"
 
   # === GUARD RESTRICTION MESSAGES ===
   restrictions:
-    mining: "<color:#FF6B6B>Guards cannot mine while on duty!</color>"
-    crafting: "<color:#FF6B6B>Guards cannot craft while on duty!</color>"
-    storage: "<color:#FF6B6B>Guards cannot access storage while on duty!</color>"
-    dropping: "<color:#FF6B6B>Guards cannot drop items while on duty!</color>"
+    mining: "<gradient:#FF6B6B:#FF8E8E>⛏️ Mining Blocked</gradient> <color:#ADB5BD>Guards cannot mine while on duty!</color>"
+    crafting: "<gradient:#FF6B6B:#FF8E8E>🔨 Crafting Blocked</gradient> <color:#ADB5BD>Guards cannot craft while on duty!</color>"
+    storage: "<gradient:#FF6B6B:#FF8E8E>📦 Storage Blocked</gradient> <color:#ADB5BD>Guards cannot access storage while on duty!</color>"
+    dropping: "<gradient:#FF6B6B:#FF8E8E>🚫 Dropping Blocked</gradient> <color:#ADB5BD>Guards cannot drop items while on duty!</color>"
 
   # === CONTRABAND SYSTEM ===
   contraband:
@@ -496,9 +496,9 @@ messages:
 
   # === COMBAT TIMER ===
   combat:
-    timer-started: "<color:#FF6B6B>⚔ Combat timer activated!</color>"
-    timer-ended: "<color:#51CF66>Combat timer expired.</color>"
-    teleport-blocked: "<color:#FF6B6B>Teleportation blocked during combat!</color>"
+    timer-started: "<gradient:#FF6B6B:#FF3838>⚔️ Combat Timer</gradient> <color:#ADB5BD>Combat timer activated!</color>"
+    timer-ended: "<gradient:#51CF66:#7ED321>✅ Combat Over</gradient> <color:#ADB5BD>Combat timer expired.</color>"
+    teleport-blocked: "<gradient:#FF6B6B:#FF8E8E>🚫 Teleport Blocked</gradient> <color:#ADB5BD>Teleportation blocked during combat!</color>"
 
   # === DUTY BANKING ===
   banking:
