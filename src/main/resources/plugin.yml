@@ -33,8 +33,8 @@ commands:
     permission-message: You don't have permission to use this command!
     
   corrections:
-    description: Admin commands for EdenCorrections
-    usage: /corrections <wanted|chase|duty|player|system|reload|help>
+    description: Admin commands for EdenCorrections - player info/stats/time/reset, penalty reset/bypass, system management
+    usage: /corrections <wanted|chase|duty|player|penalty|system|reload|help>
     permission: edencorrections.admin
     permission-message: You don't have permission to use this command!
 
@@ -146,6 +146,7 @@ permissions:
     children:
       edencorrections.admin: true
       edencorrections.admin.area: true
+      edencorrections.admin.penalty: true
       
   edencorrections.admin:
     description: Full administrative access to EdenCorrections
@@ -153,4 +154,8 @@ permissions:
     
   edencorrections.admin.area:
     description: Permission to manage chase restricted areas
+    default: op
+    
+  edencorrections.admin.penalty:
+    description: Permission to reset player penalties and award bypass time
     default: op
