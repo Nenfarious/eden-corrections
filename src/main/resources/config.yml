@@ -187,25 +187,7 @@ security:
     combat-protection: false     # Guards can still be attacked (for realism)
     teleport-protection: true    # Guards cannot be teleported against their will
 
-# ==================================================================
-# PENALTY SYSTEM CONFIGURATION
-# ==================================================================
 
-# Comprehensive penalty and violation management
-penalties:
-  enabled: true
-  escalating-penalties: true
-  max-violations-before-jail: 5
-  reset-time-hours: 24
-  automatic-jail-time: 600  # 10 minutes
-  
-  # Economic fines integration
-  economic-fines:
-    enabled: true
-    minor: 100.0
-    moderate: 250.0
-    major: 500.0
-    severe: 1000.0
 
 # ==================================================================
 # TIME SYNCHRONIZATION CONFIGURATION
@@ -416,6 +398,11 @@ messages:
       success: "<gradient:#ADB5BD:#868E96>🏠 Off Duty</gradient> <color:#ADB5BD>You are now off duty and can relax!</color>"
       success-with-time: "<gradient:#ADB5BD:#868E96>🏠 Off Duty</gradient> <color:#ADB5BD>You are now off duty! Available time: <color:#FFB3C6><time></color></color>"
       already-off: "<gradient:#FFA94D:#FFB570>⚠️ Already Off Duty</gradient> <color:#ADB5BD>You are already off duty!</color>"
+    
+    penalties:
+      stage1-applied: "<gradient:#FFE066:#FFD43B>⚠️ Stage 1 Penalty</gradient> <color:#ADB5BD>You've exceeded your off-duty time by <color:#FFB3C6><overtime></color> minutes. Minor slowness applied!</color>"
+      stage2-applied: "<gradient:#FF6B6B:#FF8E8E>⚠️ Stage 2 Penalty</gradient> <color:#ADB5BD>You've exceeded your off-duty time by <color:#FFB3C6><overtime></color> minutes. Moderate penalties applied!</color>"
+      recurring-applied: "<gradient:#FF0000:#FF3333>💀 Maximum Penalty</gradient> <color:#ADB5BD>You've exceeded your off-duty time by <color:#FFB3C6><overtime></color> minutes. Severe penalties applied!</color>"
     earning:
       base-time-earned: "<gradient:#51CF66:#7ED321>🎖️ Time Earned</gradient> <color:#ADB5BD>You've earned <color:#FFB3C6><time></color> of well-deserved off-duty time!</color>"
       performance-bonus: "<gradient:#06FFA5:#00E5FF>⭐ Performance Bonus</gradient> <color:#ADB5BD>Extra <color:#FFB3C6><time></color> off-duty time earned for <color:#FFB3C6><reason></color>!</color>"
@@ -583,6 +570,7 @@ messages:
     jail-countdown: "<gradient:#9D4EDD:#7C3AED>⏳ ARREST IN PROGRESS</gradient> <color:#ADB5BD><time> remaining</color>"
     duty-transition: "<gradient:#51CF66:#7ED321>⏳ Activating Duty</gradient> <color:#ADB5BD><time> remaining - Stay still!</color>"
     contraband-countdown: "<gradient:#FFE066:#FFD43B>⚠ <description></gradient> <color:#ADB5BD><time> remaining</color>"
+    penalty: "<gradient:#FF0000:#FF3333>💀 STAGE <stage> PENALTY</gradient> <color:#ADB5BD>Overtime: <overtime> minutes</color>"
 
   # === COMMAND HELP MESSAGES ===
   help:
@@ -643,29 +631,7 @@ messages:
       debug-enabled: "<color:#51CF66>Debug mode enabled!</color>"
       debug-disabled: "<color:#FF6B6B>Debug mode disabled!</color>"
 
-  # === PENALTY SYSTEM MESSAGES ===
-  penalties:
-    minor:
-      warning: "<gradient:#FFA94D:#FFB570>⚠️ Minor Violation</gradient> <color:#ADB5BD>Warning for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
-    moderate:
-      applied: "<gradient:#FF6B6B:#FF8E8E>📋 Moderate Penalty</gradient> <color:#ADB5BD>Penalty applied for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
-    major:
-      applied: "<gradient:#FF6B6B:#FF3838>🚨 Major Penalty</gradient> <color:#ADB5BD>Major penalty applied for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
-    severe:
-      applied: "<gradient:#FF0000:#FF3333>💀 Severe Penalty</gradient> <color:#ADB5BD>Severe penalty applied for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
-    fine:
-      applied: "<gradient:#FFE066:#FFD43B>💰 Fine Applied</gradient> <color:#ADB5BD>Fine of <color:#FFB3C6><amount></color> applied: <color:#FFB3C6><reason></color></color>"
-      insufficient-funds: "<gradient:#FF6B6B:#FF8E8E>💸 Insufficient Funds</gradient> <color:#ADB5BD>Cannot pay fine of <color:#FFB3C6><amount></color> - insufficient balance!</color>"
-    restrictions:
-      applied: "<gradient:#FF6B6B:#FF8E8E>🔒 Temporary Restrictions</gradient> <color:#ADB5BD>Restrictions applied for <color:#FFB3C6><duration></color> minutes</color>"
-      lifted: "<gradient:#51CF66:#7ED321>🔓 Restrictions Lifted</gradient> <color:#ADB5BD>Your temporary restrictions have been lifted</color>"
-    automatic-jail: "<gradient:#FF0000:#FF3333>⛓️ Automatic Jail</gradient> <color:#ADB5BD>Jailed for <color:#FFB3C6><time></color> minutes: <color:#FFB3C6><reason></color></color>"
-    escalation:
-      alert: "<gradient:#FF6B6B:#FF3838>🚨 ESCALATION ALERT</gradient> <color:#ADB5BD><color:#FFB3C6><player></color> has <color:#FFB3C6><violations></color> recent violations!</color>"
-    applied:
-      alert: "<gradient:#FF6B6B:#FF3838>📋 PENALTY APPLIED</gradient> <color:#ADB5BD><color:#FFB3C6><severity></color> penalty for <color:#FFB3C6><player></color>: <color:#FFB3C6><violation></color></color>"
-    extreme-escalation: "<gradient:#FF0000:#FF3333>🚨 EXTREME ESCALATION</gradient> <color:#ADB5BD><color:#FFB3C6><player></color> has <color:#FFB3C6><violations></color> violations - immediate attention required!</color>"
-    cleared: "<gradient:#51CF66:#7ED321>✅ Penalties Cleared</gradient> <color:#ADB5BD>All penalties have been cleared from your record</color>"
+
 
   # === OFFLINE DUTY MESSAGES ===
   offline-duty:

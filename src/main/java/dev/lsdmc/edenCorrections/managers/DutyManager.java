@@ -128,6 +128,20 @@ public class DutyManager {
         long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
         long earnedTime = data.getEarnedOffDutyTime();
         
+        // Check for invalid/corrupt time data
+        if (timeSinceOffDuty < 0 || timeSinceOffDuty > (365L * 24L * 60L * 60L * 1000L)) { // More than 1 year
+            // Invalid time data - give fresh start
+            long daysSince = timeSinceOffDuty / (24L * 60L * 60L * 1000L);
+            logger.warning("Player " + player.getName() + " has been off duty for " + daysSince + " days - giving fresh start");
+            
+            // Reset to reasonable values
+            data.setOffDutyTime(System.currentTimeMillis() - (5L * 60L * 1000L)); // 5 minutes ago
+            data.setEarnedOffDutyTime(10L * 60L * 1000L); // 10 minutes earned time
+            data.setHasBeenNotifiedOfExpiredTime(false);
+            plugin.getDataManager().savePlayerData(data);
+            return;
+        }
+        
         if (timeSinceOffDuty > earnedTime) {
             // They've used up their earned off-duty time
             // Only notify once to prevent spam
@@ -546,18 +560,103 @@ public class DutyManager {
     }
     
     /**
-     * NEW: Require guard to return to duty when they've used up their earned time
+     * NEW: Require guard to return to duty when they've used up their earned time with penalty stages
      */
     private void requireReturnToDuty(Player player, PlayerData data) {
-        plugin.getMessageManager().sendMessage(player, "duty.restrictions.off-duty-time-expired");
-        plugin.getMessageManager().sendMessage(player, "duty.restrictions.must-return-to-duty");
+        // Check how long they've been exceeding their off-duty time
+        long overTime = System.currentTimeMillis() - (data.getOffDutyTime() + data.getEarnedOffDutyTime());
+        long overTimeMinutes = overTime / (1000L * 60L);
         
-        // Optional: Add a grace period before forcing them back
-        long gracePeriod = 5 * 60 * 1000L; // 5 minutes
-        data.addEarnedOffDutyTime(gracePeriod);
+        // Determine penalty stage based on overtime
+        if (overTimeMinutes < 5) {
+            // Initial warning - no penalties yet
+            plugin.getMessageManager().sendMessage(player, "duty.restrictions.off-duty-time-expired");
+            plugin.getMessageManager().sendMessage(player, "duty.restrictions.must-return-to-duty");
+            
+            // Add a small grace period
+            long gracePeriod = 5 * 60 * 1000L; // 5 minutes
+            data.addEarnedOffDutyTime(gracePeriod);
+            data.setGraceDebtTime(gracePeriod); // Track the debt
+            
+            logger.info(player.getName() + " has used up their earned off-duty time - penalty tracking initiated");
+            
+        } else if (overTimeMinutes < 15) {
+            // Stage 1 penalty - minor effects
+            applyStage1Penalty(player, data, overTimeMinutes);
+            
+        } else if (overTimeMinutes < 30) {
+            // Stage 2 penalty - moderate effects
+            applyStage2Penalty(player, data, overTimeMinutes);
+            
+        } else {
+            // Recurring penalty - severe effects
+            applyRecurringPenalty(player, data, overTimeMinutes);
+        }
+        
         plugin.getDataManager().savePlayerData(data);
+    }
+    
+    private void applyStage1Penalty(Player player, PlayerData data, long overTimeMinutes) {
+        plugin.getMessageManager().sendMessage(player, "duty.penalties.stage1-applied",
+            plugin.getMessageManager().numberPlaceholder("overtime", overTimeMinutes));
         
-        logger.info(player.getName() + " has used up their earned off-duty time");
+        // Apply minor slowness effect
+        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+            org.bukkit.potion.PotionEffectType.SLOW, 20 * 60, 0, false, true, true));
+        
+        // Show penalty boss bar
+        plugin.getBossBarManager().showBossBar(player, "bossbar.penalty", 
+            org.bukkit.boss.BossBar.Color.YELLOW, org.bukkit.boss.BossBar.Overlay.PROGRESS,
+            plugin.getMessageManager().stringPlaceholder("stage", "1"),
+            plugin.getMessageManager().numberPlaceholder("overtime", overTimeMinutes));
+        
+        logger.info("Applied Stage 1 off-duty penalty to " + player.getName() + " (Slowness 1)");
+    }
+    
+    private void applyStage2Penalty(Player player, PlayerData data, long overTimeMinutes) {
+        plugin.getMessageManager().sendMessage(player, "duty.penalties.stage2-applied",
+            plugin.getMessageManager().numberPlaceholder("overtime", overTimeMinutes));
+        
+        // Apply moderate slowness and weakness
+        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+            org.bukkit.potion.PotionEffectType.SLOW, 20 * 60, 1, false, true, true));
+        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+            org.bukkit.potion.PotionEffectType.WEAKNESS, 20 * 60, 0, false, true, true));
+        
+        // Show penalty boss bar
+        plugin.getBossBarManager().showBossBar(player, "bossbar.penalty", 
+            org.bukkit.boss.BossBar.Color.RED, org.bukkit.boss.BossBar.Overlay.PROGRESS,
+            plugin.getMessageManager().stringPlaceholder("stage", "2"),
+            plugin.getMessageManager().numberPlaceholder("overtime", overTimeMinutes));
+        
+        logger.info("Applied Stage 2 off-duty penalty to " + player.getName() + " (Slowness 2, Weakness 1)");
+    }
+    
+    private void applyRecurringPenalty(Player player, PlayerData data, long overTimeMinutes) {
+        plugin.getMessageManager().sendMessage(player, "duty.penalties.recurring-applied",
+            plugin.getMessageManager().numberPlaceholder("overtime", overTimeMinutes));
+        
+        // Apply severe effects
+        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+            org.bukkit.potion.PotionEffectType.SLOW, 20 * 60, 2, false, true, true));
+        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+            org.bukkit.potion.PotionEffectType.WEAKNESS, 20 * 60, 1, false, true, true));
+        player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+            org.bukkit.potion.PotionEffectType.HUNGER, 20 * 60, 0, false, true, true));
+        
+        // Show severe penalty boss bar
+        plugin.getBossBarManager().showBossBar(player, "bossbar.penalty", 
+            org.bukkit.boss.BossBar.Color.PURPLE, org.bukkit.boss.BossBar.Overlay.PROGRESS,
+            plugin.getMessageManager().stringPlaceholder("stage", "MAX"),
+            plugin.getMessageManager().numberPlaceholder("overtime", overTimeMinutes));
+        
+        // Consider applying economic penalty if available
+        if (plugin.getVaultEconomyManager() != null && plugin.getVaultEconomyManager().isAvailable()) {
+            double fine = 50.0 * (overTimeMinutes / 30); // Escalating fine
+            plugin.getVaultEconomyManager().takeMoney(player, fine, "Off-duty overtime penalty");
+        }
+        
+        logger.info("Applied recurring off-duty penalty to " + player.getName() + " (Slowness 3, Weakness 2, Hunger 1)");
     }
 
     // === INVENTORY MANAGEMENT METHODS ===
