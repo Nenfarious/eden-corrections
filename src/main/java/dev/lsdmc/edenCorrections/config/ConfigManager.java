@@ -1390,4 +1390,4 @@ public class ConfigManager {
             logger.severe("Failed to restore configuration: " + e.getMessage());
         }
     }
-} 
+}

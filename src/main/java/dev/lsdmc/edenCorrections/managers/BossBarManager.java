@@ -612,4 +612,4 @@ public class BossBarManager {
     public void cleanupPlayer(Player player) {
         hideBossBar(player);
     }
-} 
+}

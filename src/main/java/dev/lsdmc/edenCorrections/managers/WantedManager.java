@@ -92,8 +92,8 @@ public class WantedManager {
             plugin.getBossBarManager().showWantedBossBar(targetPlayer, level, plugin.getConfigManager().getWantedDuration());
             
             // Set UNT wanted level indicator if available
-                    if (plugin.getLuckPermsMetaManager() != null && plugin.getLuckPermsMetaManager().isAvailable()) {
-            plugin.getLuckPermsMetaManager().setWantedTag(targetPlayer, level, reason)
+            if (plugin.getLuckPermsMetaManager() != null && plugin.getLuckPermsMetaManager().isAvailable()) {
+                plugin.getLuckPermsMetaManager().setWantedTag(targetPlayer, level, reason)
                     .thenAccept(success -> {
                         if (success) {
                             logger.fine("Set UNT wanted indicator for " + targetPlayer.getName() + " (Level " + level + ")");
@@ -169,8 +169,8 @@ public class WantedManager {
             plugin.getBossBarManager().hideBossBarByType(targetPlayer, "wanted");
             
             // Remove UNT wanted indicator if available
-                    if (plugin.getLuckPermsMetaManager() != null && plugin.getLuckPermsMetaManager().isAvailable()) {
-            plugin.getLuckPermsMetaManager().removeWantedTag(targetPlayer)
+            if (plugin.getLuckPermsMetaManager() != null && plugin.getLuckPermsMetaManager().isAvailable()) {
+                plugin.getLuckPermsMetaManager().removeWantedTag(targetPlayer)
                     .thenAccept(success -> {
                         if (success) {
                             logger.fine("Removed UNT wanted indicator from " + targetPlayer.getName());

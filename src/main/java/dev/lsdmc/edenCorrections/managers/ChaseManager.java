@@ -292,9 +292,21 @@ public class ChaseManager {
     // === ENHANCED CHASE METHODS ===
     
     public boolean startChase(Player guard, Player target) {
+<<<<<<< HEAD
         // Input validation
         if (guard == null || target == null) {
             logger.warning("Cannot start chase: null player provided (guard=" + guard + ", target=" + target + ")");
+=======
+        // Validate chase can start
+        if (!canStartChaseWithMessages(guard, target)) {
+            return false;
+        }
+        
+        // Check security restrictions
+        if (!plugin.getSecurityManager().canPlayerBeChased(target)) {
+            plugin.getMessageManager().sendMessage(guard, "security.guard-immunity.chase-protected");
+            plugin.getSecurityManager().logSecurityViolation("start chase", guard, target);
+>>>>>>> 802b20989bd53e59c06b10b624bd5acdc909227d
             return false;
         }
         
@@ -319,22 +331,22 @@ public class ChaseManager {
             return false;
         }
         
-            // Check safe zones with error handling
-            try {
-        if (plugin.getWorldGuardUtils().isPlayerInSafeZone(target)) {
-            plugin.getMessageManager().sendMessage(guard, "chase.restrictions.in-safe-zone");
-                    return false;
-                }
-            } catch (Exception e) {
-                logger.warning("Safe zone check failed for chase start: " + e.getMessage());
-                plugin.getMessageManager().sendMessage(guard, "chase.errors.region-check-failed");
+        // Check safe zones with error handling
+        try {
+            if (plugin.getWorldGuardUtils().isPlayerInSafeZone(target)) {
+                plugin.getMessageManager().sendMessage(guard, "chase.restrictions.in-safe-zone");
                 return false;
             }
-            
-            // Cross-world location validation
-            try {
-                Location guardLoc = guard.getLocation();
-                Location targetLoc = target.getLocation();
+        } catch (Exception e) {
+            logger.warning("Safe zone check failed for chase start: " + e.getMessage());
+            plugin.getMessageManager().sendMessage(guard, "chase.errors.region-check-failed");
+            return false;
+        }
+        
+        // Cross-world location validation
+        try {
+            Location guardLoc = guard.getLocation();
+            Location targetLoc = target.getLocation();
                 
                 if (guardLoc == null || targetLoc == null) {
                     logger.warning("Cannot start chase: null location (guard=" + guardLoc + ", target=" + targetLoc + ")");
@@ -396,6 +408,7 @@ public class ChaseManager {
         plugin.getDataManager().savePlayerData(guardData);
         plugin.getDataManager().savePlayerData(targetData);
         
+<<<<<<< HEAD
                 // Add chase data to manager
                 plugin.getDataManager().addChaseData(chase);
                 dataUpdated = true;
@@ -412,6 +425,14 @@ public class ChaseManager {
         
                 // Send messages with error handling
                 try {
+=======
+        // Show boss bars
+        double distance = guard.getLocation().distance(target.getLocation());
+        plugin.getBossBarManager().showChaseGuardBossBar(guard, target, distance);
+        plugin.getBossBarManager().showChaseTargetBossBar(target, guard, distance);
+        
+        // Send messages
+>>>>>>> 802b20989bd53e59c06b10b624bd5acdc909227d
         plugin.getMessageManager().sendMessage(guard, "chase.start.success", 
             playerPlaceholder("target", target));
         plugin.getMessageManager().sendMessage(target, "chase.start.target-notification", 
@@ -568,7 +589,22 @@ public class ChaseManager {
                 }
         }
         
+<<<<<<< HEAD
             // Send end messages with error handling
+=======
+        // Remove chase from data
+        plugin.getDataManager().removeChaseData(chaseId);
+        
+        // Hide boss bars
+        if (guard != null) {
+            plugin.getBossBarManager().hideBossBarByType(guard, "chase_guard");
+        }
+        if (target != null) {
+            plugin.getBossBarManager().hideBossBarByType(target, "chase_target");
+        }
+        
+        // Send end messages
+>>>>>>> 802b20989bd53e59c06b10b624bd5acdc909227d
         if (guard != null) {
                 try {
             plugin.getMessageManager().sendMessage(guard, "chase.end.success",
@@ -682,6 +718,66 @@ public class ChaseManager {
         return true;
     }
     
+<<<<<<< HEAD
+=======
+    /**
+     * Check if a chase can start between guard and target
+     * @param guard The guard attempting to start the chase
+     * @param target The target to be chased
+     * @return true if chase can start, false otherwise
+     */
+    public boolean canStartChase(Player guard, Player target) {
+        // Check if guard is on duty
+        if (!plugin.getDutyManager().isOnDuty(guard)) {
+            return false;
+        }
+        
+        // Check if target is wanted
+        if (!plugin.getWantedManager().isWanted(target)) {
+            return false;
+        }
+        
+        // Check if target is in combat (enhanced restriction)
+        if (plugin.getConfigManager().shouldPreventChaseDuringCombat() && isInCombat(target)) {
+            return false;
+        }
+        
+        // Check if target is in restricted area
+        if (isPlayerInRestrictedArea(target)) {
+            return false;
+        }
+        
+        // Check max concurrent chases
+        int activeChases = plugin.getDataManager().getAllActiveChases().size();
+        if (activeChases >= plugin.getConfigManager().getMaxConcurrentChases()) {
+            return false;
+        }
+        
+        // Check if guard is already chasing someone
+        if (plugin.getDataManager().isGuardChasing(guard.getUniqueId())) {
+            return false;
+        }
+        
+        // Check if target is already being chased
+        if (plugin.getDataManager().isPlayerBeingChased(target.getUniqueId())) {
+            return false;
+        }
+        
+        // Check if trying to chase themselves
+        if (guard.equals(target)) {
+            return false;
+        }
+        
+        // Check distance
+        double distance = guard.getLocation().distance(target.getLocation());
+        if (distance > plugin.getConfigManager().getMaxChaseDistance()) {
+            return false;
+        }
+        
+        return true;
+    }
+    
+>>>>>>> 802b20989bd53e59c06b10b624bd5acdc909227d
     private boolean canStartChaseWithMessages(Player guard, Player target) {
         // Check if guard is on duty
         if (!plugin.getDutyManager().isOnDuty(guard)) {

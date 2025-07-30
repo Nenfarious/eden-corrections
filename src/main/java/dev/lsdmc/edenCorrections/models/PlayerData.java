@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 package dev.lsdmc.edenCorrections.models;
 
 import java.util.UUID;
@@ -316,4 +317,5 @@ public class PlayerData {
                 ", beingChased=" + beingChased +
                 '}';
     }
-} 
+
+ 
