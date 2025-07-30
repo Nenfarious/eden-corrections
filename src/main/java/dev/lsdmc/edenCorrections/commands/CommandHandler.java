@@ -32,54 +32,37 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     }
     
     public void registerCommands() {
-        // Register main commands with tab completion
-        plugin.getCommand("duty").setExecutor(this);
-        plugin.getCommand("duty").setTabCompleter(this);
+        // Register commands safely
+        String[] commands = {
+            "duty", "chase", "jail", "jailoffline", "corrections", "edenreload",
+            "sword", "bow", "armor", "drugs", "drugtest", "dutybank", "tips", "area"
+        };
         
-        plugin.getCommand("chase").setExecutor(this);
-        plugin.getCommand("chase").setTabCompleter(this);
+        int registeredCount = 0;
+        for (String commandName : commands) {
+            if (registerCommand(commandName)) {
+                registeredCount++;
+            }
+        }
         
-        plugin.getCommand("jail").setExecutor(this);
-        plugin.getCommand("jail").setTabCompleter(this);
-        
-        plugin.getCommand("jailoffline").setExecutor(this);
-        plugin.getCommand("jailoffline").setTabCompleter(this);
-        
-        plugin.getCommand("corrections").setExecutor(this);
-        plugin.getCommand("corrections").setTabCompleter(this);
-        
-        plugin.getCommand("edenreload").setExecutor(this);
-        plugin.getCommand("edenreload").setTabCompleter(this);
-        
-        // Register contraband commands
-        plugin.getCommand("sword").setExecutor(this);
-        plugin.getCommand("sword").setTabCompleter(this);
-        
-        plugin.getCommand("bow").setExecutor(this);
-        plugin.getCommand("bow").setTabCompleter(this);
-        
-        plugin.getCommand("armor").setExecutor(this);
-        plugin.getCommand("armor").setTabCompleter(this);
-        
-        plugin.getCommand("drugs").setExecutor(this);
-        plugin.getCommand("drugs").setTabCompleter(this);
-        
-        plugin.getCommand("drugtest").setExecutor(this);
-        plugin.getCommand("drugtest").setTabCompleter(this);
-        
-        // Register banking commands
-        plugin.getCommand("dutybank").setExecutor(this);
-        plugin.getCommand("dutybank").setTabCompleter(this);
-        
-        // Register tips command
-        plugin.getCommand("tips").setExecutor(this);
-        plugin.getCommand("tips").setTabCompleter(this);
-        
-        // Register area management command
-        plugin.getCommand("area").setExecutor(this);
-        plugin.getCommand("area").setTabCompleter(this);
-        
-        logger.info("Commands registered successfully with tab completion!");
+        logger.info("Successfully registered " + registeredCount + "/" + commands.length + " commands with tab completion!");
+    }
+    
+    private boolean registerCommand(String commandName) {
+        try {
+            org.bukkit.command.PluginCommand command = plugin.getCommand(commandName);
+            if (command != null) {
+                command.setExecutor(this);
+                command.setTabCompleter(this);
+                return true;
+            } else {
+                logger.warning("Command '" + commandName + "' not found in plugin.yml - skipping registration");
+                return false;
+            }
+        } catch (Exception e) {
+            logger.severe("Failed to register command '" + commandName + "': " + e.getMessage());
+            return false;
+        }
     }
     
     @Override
