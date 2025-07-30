@@ -48,6 +48,9 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         plugin.getCommand("corrections").setExecutor(this);
         plugin.getCommand("corrections").setTabCompleter(this);
         
+        plugin.getCommand("penalty").setExecutor(this);
+        plugin.getCommand("penalty").setTabCompleter(this);
+        
         plugin.getCommand("edenreload").setExecutor(this);
         plugin.getCommand("edenreload").setTabCompleter(this);
         
@@ -97,6 +100,8 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleJailOfflineCommand(sender, args);
             case "corrections":
                 return handleCorrectionsCommand(sender, args);
+            case "penalty":
+                return handlePenaltyCommand(sender, args);
             case "edenreload":
                 return handleReloadCommand(sender, args);
             // Contraband commands
@@ -136,6 +141,8 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleJailOfflineTabComplete(sender, args);
             case "corrections":
                 return handleCorrectionsTabComplete(sender, args);
+            case "penalty":
+                return handlePenaltyTabComplete(sender, args);
             case "edenreload":
                 return new ArrayList<>(); // No arguments
             case "sword":
@@ -349,6 +356,8 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleDutyAdminCommand(sender, args);
             case "player":
                 return handlePlayerAdminCommand(sender, args);
+            case "penalty":
+                return handlePenaltyCommand(sender, args);
             case "system":
                 return handleSystemCommand(sender, args);
             case "reload":
@@ -667,8 +676,237 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     }
     
     private boolean handlePlayerAdminCommand(CommandSender sender, String[] args) {
-        plugin.getMessageManager().sendMessage(sender, "universal.failed");
+        if (args.length < 2) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections player <info|stats|time|reset> <player>"));
+            return true;
+        }
+        
+        String action = args[1].toLowerCase();
+        
+        switch (action) {
+            case "info":
+                return handlePlayerInfo(sender, args);
+            case "stats":
+                return handlePlayerStats(sender, args);
+            case "time":
+                return handlePlayerTime(sender, args);
+            case "reset":
+                return handlePlayerReset(sender, args);
+            default:
+                plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
+                    stringPlaceholder("subcommand", action));
+                return true;
+        }
+    }
+    
+    private boolean handlePlayerInfo(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections player info <player>"));
+            return true;
+        }
+        
+        String playerName = args[2];
+        Player target = Bukkit.getPlayer(playerName);
+        
+        if (target == null) {
+            // Try to get offline player data
+            PlayerData playerData = plugin.getDataManager().getPlayerDataByName(playerName);
+            if (playerData == null) {
+                plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                    stringPlaceholder("player", playerName));
+                return true;
+            }
+            
+            // Send offline player info
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.header");
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.player",
+                stringPlaceholder("player", playerName));
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.rank",
+                stringPlaceholder("rank", "Offline"));
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.duty-status",
+                stringPlaceholder("status", "Offline"));
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.wanted-level",
+                stringPlaceholder("level", String.valueOf(playerData.getWantedLevel())));
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.chase-status",
+                stringPlaceholder("status", "Offline"));
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.duty-time",
+                stringPlaceholder("time", formatTime(playerData.getTotalDutyTime())));
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.arrests",
+                numberPlaceholder("arrests", playerData.getTotalArrests()));
+            plugin.getMessageManager().sendMessage(sender, "messages.player.info.violations",
+                numberPlaceholder("violations", playerData.getTotalViolations()));
+            return true;
+        }
+        
+        // Online player - get live data
+        PlayerData playerData = plugin.getDataManager().getPlayerData(target.getUniqueId());
+        if (playerData == null) {
+            plugin.getMessageManager().sendMessage(sender, "messages.player.no-data",
+                stringPlaceholder("player", target.getName()));
+            return true;
+        }
+        
+        // Get current rank
+        String guardRank = plugin.getDutyManager().getPlayerGuardRank(target);
+        String rankDisplay = (guardRank != null) ? guardRank : "None";
+        
+        // Get duty status
+        boolean onDuty = plugin.getDutyManager().isOnDuty(target);
+        String dutyStatus = onDuty ? "On Duty" : "Off Duty";
+        
+        // Get chase status
+        boolean inChase = plugin.getChaseManager().isInChase(target);
+        String chaseStatus = inChase ? "In Chase" : "Not in Chase";
+        
+        // Send player info
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.header");
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.player",
+            stringPlaceholder("player", target.getName()));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.rank",
+            stringPlaceholder("rank", rankDisplay));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.duty-status",
+            stringPlaceholder("status", dutyStatus));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.wanted-level",
+            stringPlaceholder("level", String.valueOf(playerData.getWantedLevel())));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.chase-status",
+            stringPlaceholder("status", chaseStatus));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.duty-time",
+            stringPlaceholder("time", formatTime(playerData.getTotalDutyTime())));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.arrests",
+            numberPlaceholder("arrests", playerData.getTotalArrests()));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.info.violations",
+            numberPlaceholder("violations", playerData.getTotalViolations()));
+        
         return true;
+    }
+    
+    private boolean handlePlayerStats(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections player stats <player>"));
+            return true;
+        }
+        
+        String playerName = args[2];
+        
+        PlayerData playerData = plugin.getDataManager().getPlayerDataByName(playerName);
+        if (playerData == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Send stats header
+        plugin.getMessageManager().sendMessage(sender, "messages.player.stats.header");
+        plugin.getMessageManager().sendMessage(sender, "messages.player.stats.player",
+            stringPlaceholder("player", playerName));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.stats.duty-time",
+            stringPlaceholder("time", formatTime(playerData.getTotalDutyTime())));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.stats.earned-time",
+            stringPlaceholder("time", formatTime(playerData.getEarnedOffDutyTime())));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.stats.arrests",
+            numberPlaceholder("arrests", playerData.getTotalArrests()));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.stats.violations",
+            numberPlaceholder("violations", playerData.getTotalViolations()));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.stats.wanted-level",
+            numberPlaceholder("level", playerData.getWantedLevel()));
+        
+        return true;
+    }
+    
+    private boolean handlePlayerTime(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections player time <player>"));
+            return true;
+        }
+        
+        String playerName = args[2];
+        
+        PlayerData playerData = plugin.getDataManager().getPlayerDataByName(playerName);
+        if (playerData == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Send time info
+        plugin.getMessageManager().sendMessage(sender, "messages.player.time.header");
+        plugin.getMessageManager().sendMessage(sender, "messages.player.time.player",
+            stringPlaceholder("player", playerName));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.time.total-duty",
+            stringPlaceholder("time", formatTime(playerData.getTotalDutyTime())));
+        plugin.getMessageManager().sendMessage(sender, "messages.player.time.earned-time",
+            stringPlaceholder("time", formatTime(playerData.getEarnedOffDutyTime())));
+        
+        // Check if player is online for current session info
+        Player target = Bukkit.getPlayer(playerName);
+        if (target != null && plugin.getDutyManager().isOnDuty(target)) {
+            // Calculate session time manually
+            long currentTime = System.currentTimeMillis();
+            long sessionStartTime = playerData.getDutyStartTime();
+            if (sessionStartTime > 0) {
+                long sessionTime = (currentTime - sessionStartTime) / 1000;
+                plugin.getMessageManager().sendMessage(sender, "messages.player.time.session-time",
+                    stringPlaceholder("time", formatTime(sessionTime)));
+            }
+        }
+        
+        return true;
+    }
+    
+    private boolean handlePlayerReset(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections player reset <player>"));
+            return true;
+        }
+        
+        String playerName = args[2];
+        
+        PlayerData playerData = plugin.getDataManager().getPlayerDataByName(playerName);
+        if (playerData == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Reset player data - clear wanted status and penalties
+        playerData.setWantedLevel(0);
+        playerData.setWantedReason(null);
+        playerData.setWantedExpireTime(0);
+        playerData.setBeingChased(false);
+        playerData.setChaserGuard(null);
+        playerData.setChaseStartTime(0);
+        plugin.getDataManager().savePlayerData(playerData);
+        
+        plugin.getMessageManager().sendMessage(sender, "admin.penalty.reset-success",
+            stringPlaceholder("player", playerName));
+        
+        // Notify player if online
+        Player target = Bukkit.getPlayer(playerName);
+        if (target != null) {
+            plugin.getMessageManager().sendMessage(target, "admin.penalty.reset-notification");
+        }
+        
+        return true;
+    }
+    
+    private String formatTime(long seconds) {
+        if (seconds <= 0) return "0s";
+        
+        long hours = seconds / 3600;
+        long minutes = (seconds % 3600) / 60;
+        long secs = seconds % 60;
+        
+        StringBuilder sb = new StringBuilder();
+        if (hours > 0) sb.append(hours).append("h ");
+        if (minutes > 0) sb.append(minutes).append("m ");
+        if (secs > 0 || sb.length() == 0) sb.append(secs).append("s");
+        
+        return sb.toString().trim();
     }
     
     private boolean handleSystemCommand(CommandSender sender, String[] args) {
@@ -1251,5 +1489,128 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         }
         
         return new ArrayList<>();
+    }
+    
+    private List<String> handlePenaltyTabComplete(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("edencorrections.admin.penalty")) {
+            return new ArrayList<>();
+        }
+        
+        if (args.length == 1) {
+            List<String> completions = Arrays.asList("reset", "bypass");
+            return filterCompletions(completions, args);
+        }
+        
+        if (args.length == 2) {
+            // Return online player names
+            return Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .collect(Collectors.toList());
+        }
+        
+        return new ArrayList<>();
+    }
+    
+    private boolean handlePenaltyCommand(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("edencorrections.admin.penalty")) {
+            plugin.getMessageManager().sendMessage(sender, "universal.no-permission");
+            return true;
+        }
+        
+        if (args.length < 2) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/penalty <reset|bypass> <player>"));
+            return true;
+        }
+        
+        String action = args[0].toLowerCase();
+        String playerName = args[1];
+        
+        switch (action) {
+            case "reset":
+                return handlePenaltyReset(sender, playerName);
+            case "bypass":
+                return handlePenaltyBypass(sender, playerName);
+            default:
+                plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
+                    stringPlaceholder("subcommand", action));
+                return true;
+        }
+    }
+    
+    private boolean handlePenaltyReset(CommandSender sender, String playerName) {
+        PlayerData playerData = plugin.getDataManager().getPlayerDataByName(playerName);
+        if (playerData == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Reset player data - clear wanted status and penalties
+        playerData.setWantedLevel(0);
+        playerData.setWantedReason(null);
+        playerData.setWantedExpireTime(0);
+        playerData.setBeingChased(false);
+        playerData.setChaserGuard(null);
+        playerData.setChaseStartTime(0);
+        plugin.getDataManager().savePlayerData(playerData);
+        
+        plugin.getMessageManager().sendMessage(sender, "admin.penalty.reset-success",
+            stringPlaceholder("player", playerName));
+        
+        // Notify player if online
+        Player target = Bukkit.getPlayer(playerName);
+        if (target != null) {
+            plugin.getMessageManager().sendMessage(target, "admin.penalty.reset-notification");
+        }
+        
+        return true;
+    }
+    
+    private boolean handlePenaltyBypass(CommandSender sender, String playerName) {
+        Player target = Bukkit.getPlayer(playerName);
+        if (target == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-offline",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Get configurable values
+        long additionalTime = plugin.getConfigManager().getPenaltyBypassEarnedTimeBonus();
+        boolean clearPenaltyTracking = plugin.getConfigManager().isPenaltyBypassClearTracking();
+        boolean removePotionEffects = plugin.getConfigManager().isPenaltyBypassRemovePotionEffects();
+        
+        // Award earned time
+        PlayerData playerData = plugin.getDataManager().getPlayerData(target.getUniqueId());
+        if (playerData != null) {
+            playerData.addEarnedOffDutyTime(additionalTime);
+            plugin.getDataManager().savePlayerData(playerData);
+        }
+        
+        // Clear penalty tracking if configured
+        if (clearPenaltyTracking && playerData != null) {
+            playerData.setWantedLevel(0);
+            playerData.setWantedReason(null);
+            playerData.setWantedExpireTime(0);
+            playerData.setBeingChased(false);
+            playerData.setChaserGuard(null);
+            playerData.setChaseStartTime(0);
+            plugin.getDataManager().savePlayerData(playerData);
+        }
+        
+        // Remove potion effects if configured
+        if (removePotionEffects) {
+            target.getActivePotionEffects().clear();
+        }
+        
+        plugin.getMessageManager().sendMessage(sender, "admin.penalty.bypass-success",
+            stringPlaceholder("player", playerName),
+            numberPlaceholder("seconds", additionalTime));
+        
+        // Notify target player
+        plugin.getMessageManager().sendMessage(target, "admin.penalty.bypass-notification");
+        
+        return true;
     }
 } 
