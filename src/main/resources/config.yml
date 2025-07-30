@@ -299,6 +299,7 @@ messages:
         check-current: "<gradient:#06FFA5:#00E5FF>📍 Current Location</gradient> <color:#ADB5BD>You are in regions: <color:#FFB3C6><regions></color></color>"
         check-result: "<gradient:#06FFA5:#00E5FF>📍 Area Check</gradient> <color:#ADB5BD>You are <color:#FFB3C6><result></color> area <color:#FFB3C6><area></color></color>"
     # === DEBUG DIAGNOSTIC MESSAGES ===
+    # === DEBUG DIAGNOSTIC MESSAGES ===
     debug:
       enabled: "<gradient:#51CF66:#7ED321>🔧 Debug Mode</gradient> <color:#ADB5BD>Debug mode enabled!</color>"
       disabled: "<gradient:#FF6B6B:#FF8E8E>🔧 Debug Mode</gradient> <color:#ADB5BD>Debug mode disabled!</color>"
@@ -307,6 +308,16 @@ messages:
       invalid-value: "<gradient:#FFA94D:#FFB570>⚠️ Invalid Value</gradient> <color:#ADB5BD>Invalid debug value. Use: on, off, rank, messages, forcereload</color>"
       diagnostic-report: "<gradient:#06FFA5:#00E5FF>📊 Diagnostic Report</gradient> <color:#ADB5BD>Diagnostic report generated! Check the console for detailed information.</color>"
       force-reload: "<gradient:#06FFA5:#00E5FF>🔄 Force Reload</gradient> <color:#ADB5BD>Force reloading MessageManager... Check console for details.</color>"
+
+  # === DEBUG MESSAGES (Referenced by CommandHandler) ===
+  debug:
+    enabled: "<gradient:#51CF66:#7ED321>🔧 Debug Enabled</gradient> <color:#ADB5BD>Debug mode has been enabled!</color>"
+    disabled: "<gradient:#FF6B6B:#FF8E8E>🔧 Debug Disabled</gradient> <color:#ADB5BD>Debug mode has been disabled!</color>"
+    status-enabled: "<gradient:#51CF66:#7ED321>🔧 Debug Status</gradient> <color:#ADB5BD>Debug mode is currently enabled</color>"
+    status-disabled: "<gradient:#FF6B6B:#FF8E8E>🔧 Debug Status</gradient> <color:#ADB5BD>Debug mode is currently disabled</color>"
+    invalid-value: "<gradient:#FFA94D:#FFB570>⚠️ Invalid Value</gradient> <color:#ADB5BD>Invalid debug value. Use: on, off, rank, messages, forcereload</color>"
+    diagnostic-report: "<gradient:#06FFA5:#00E5FF>📊 Diagnostic Report</gradient> <color:#ADB5BD>Diagnostic report generated! Check the console for detailed information.</color>"
+    force-reload: "<gradient:#06FFA5:#00E5FF>🔄 Force Reload</gradient> <color:#ADB5BD>Force reloading MessageManager... Check console for details.</color>"
 
   # === HELPFUL TIPS FOR COMPLEX SYSTEMS ===
   tips:
@@ -426,7 +437,7 @@ messages:
     arrest:
       success: "<gradient:#51CF66:#7ED321>🎯 Arrest Successful</gradient> <color:#ADB5BD>Target arrested and jailed for <color:#FFB3C6><time></color>!</color>"
       target-notification: "<gradient:#FF6B6B:#FF8E8E>🚔 You've Been Arrested</gradient> <color:#ADB5BD>You are now jailed for <color:#FFB3C6><time></color> - Reason: <color:#FFB3C6><reason></color></color>"
-      guard-alert: "<gradient:#51CF66:#7ED321>🎯 Arrest Completed</gradient> <color:#ADB5BD>Successfully arrested <color:#FFB3C6><target></color>!</color>"
+      guard-alert: "<gradient:#51CF66:#7ED321>🎯 Arrest Completed</gradient> <color:#ADB5BD><color:#FFB3C6><guard></color> successfully arrested <color:#FFB3C6><target></color> for <color:#FFB3C6><time></color>!</color>"
       offline-success: "<gradient:#51CF66:#7ED321>🎯 Offline Arrest</gradient> <color:#ADB5BD>Offline player <color:#FFB3C6><target></color> has been jailed!</color>"
     countdown:
       started: "<gradient:#9D4EDD:#7C3AED>⏳ Arrest Countdown</gradient> <color:#ADB5BD>Stay close to <color:#FFB3C6><target></color> for <color:#FFB3C6>10 seconds</color> to complete arrest!</color>"
@@ -502,11 +513,11 @@ messages:
 
   # === DUTY BANKING ===
   banking:
-    status: "<color:#06FFA5>Duty Time: <time> | Available: <tokens> tokens</color>"
-    conversion-success: "<color:#51CF66>Converted <time> duty time to <tokens> tokens!</color>"
-    insufficient-time: "<color:#FF6B6B>Insufficient duty time for conversion! Minimum: <minimum></color>"
-    auto-conversion: "<color:#06FFA5>Auto-converted <time> duty time to <tokens> tokens!</color>"
-    disabled: "<color:#FF6B6B>Duty banking is disabled!</color>"
+    status: "<gradient:#06FFA5:#00E5FF>💰 Duty Banking Status</gradient> <color:#ADB5BD>Time: <color:#FFB3C6><time></color> | Available: <color:#FFB3C6><tokens></color> tokens</color>"
+    conversion-success: "<gradient:#51CF66:#7ED321>✅ Conversion Success</gradient> <color:#ADB5BD>Converted <color:#FFB3C6><time></color> duty time to <color:#FFB3C6><tokens></color> tokens!</color>"
+    insufficient-time: "<gradient:#FF6B6B:#FF8E8E>⏰ Insufficient Time</gradient> <color:#ADB5BD>Insufficient duty time for conversion! Minimum: <color:#FFB3C6><minimum></color></color>"
+    auto-conversion: "<gradient:#06FFA5:#00E5FF>🔄 Auto-Conversion</gradient> <color:#ADB5BD>Auto-converted <color:#FFB3C6><time></color> duty time to <color:#FFB3C6><tokens></color> tokens!</color>"
+    disabled: "<gradient:#FF6B6B:#FF8E8E>🚫 Banking Disabled</gradient> <color:#ADB5BD>Duty banking is disabled!</color>"
 
   # === ACTION BAR MESSAGES ===
   actionbar:
@@ -589,6 +600,11 @@ messages:
       debug-status-disabled: "<color:#FF6B6B>Disabled</color>"
       debug-enabled: "<color:#51CF66>Debug mode enabled!</color>"
       debug-disabled: "<color:#FF6B6B>Debug mode disabled!</color>"
+
+  # === GUARD DEATH SYSTEM ===
+  guard:
+    death:
+      announcement: "<gradient:#FF6B6B:#FF3838>💀 GUARD DOWN</gradient> <color:#ADB5BD>Guard <color:#FFB3C6><guard></color> (<color:#FFB3C6><rank></color>) was killed at <color:#FFB3C6><location></color>!</color>"
 
   # === SECURITY MESSAGES ===
   security:
