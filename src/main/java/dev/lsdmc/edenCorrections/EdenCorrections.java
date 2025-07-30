@@ -43,6 +43,14 @@ public class EdenCorrections extends JavaPlugin {
     // Security and UI managers
     private SecurityManager securityManager;
     private BossBarManager bossBarManager;
+    private PenaltyManager penaltyManager;
+    private TimeSyncManager timeSyncManager;
+    private OfflineDutyManager offlineDutyManager;
+    private SpamControlManager spamControlManager;
+    private GuardLootManager guardLootManager;
+    private LuckPermsMetaManager luckPermsMetaManager;
+    private VaultEconomyManager vaultEconomyManager;
+    private CMIIntegration cmiIntegration;
     
     // Event handler
     private GuardEventHandler eventHandler;
@@ -123,6 +131,47 @@ public class EdenCorrections extends JavaPlugin {
         
         if (eventHandler != null) {
             logger.info("Cleaning up event handler...");
+        }
+        
+        // Clean up new managers
+        if (offlineDutyManager != null) {
+            try {
+                offlineDutyManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up OfflineDutyManager: " + e.getMessage());
+            }
+        }
+        
+        if (penaltyManager != null) {
+            try {
+                penaltyManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up PenaltyManager: " + e.getMessage());
+            }
+        }
+        
+        if (timeSyncManager != null) {
+            try {
+                timeSyncManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up TimeSyncManager: " + e.getMessage());
+            }
+        }
+        
+        if (spamControlManager != null) {
+            try {
+                spamControlManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up SpamControlManager: " + e.getMessage());
+            }
+        }
+        
+        if (luckPermsMetaManager != null) {
+            try {
+                luckPermsMetaManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up LuckPermsMetaManager: " + e.getMessage());
+            }
         }
         
         if (dutyBankingManager != null) {
@@ -231,6 +280,24 @@ public class EdenCorrections extends JavaPlugin {
     }
     
     private void initializeManagers() {
+        // Initialize integrations first
+        vaultEconomyManager = new VaultEconomyManager(this);
+        cmiIntegration = new CMIIntegration(this);
+        
+        // Initialize utility managers
+        timeSyncManager = new TimeSyncManager(this);
+        spamControlManager = new SpamControlManager(this);
+        guardLootManager = new GuardLootManager(this);
+        penaltyManager = new PenaltyManager(this);
+        offlineDutyManager = new OfflineDutyManager(this);
+        
+        // Initialize LuckPerms meta manager if available
+        try {
+            luckPermsMetaManager = new LuckPermsMetaManager(this);
+        } catch (Exception e) {
+            logger.warning("LuckPerms not available - meta features disabled: " + e.getMessage());
+        }
+        
         // Initialize feature managers
         dutyManager = new DutyManager(this);
         wantedManager = new WantedManager(this);
@@ -243,7 +310,22 @@ public class EdenCorrections extends JavaPlugin {
         securityManager = new SecurityManager(this);
         bossBarManager = new BossBarManager(this);
         
-        // Initialize managers
+        // Initialize integrations
+        vaultEconomyManager.initialize();
+        
+        // Initialize utility managers
+        timeSyncManager.initialize();
+        spamControlManager.initialize();
+        guardLootManager.initialize();
+        penaltyManager.initialize();
+        offlineDutyManager.initialize();
+        
+        // Initialize LuckPerms meta manager if available
+        if (luckPermsMetaManager != null) {
+            luckPermsMetaManager.initialize();
+        }
+        
+        // Initialize feature managers
         dutyManager.initialize();
         wantedManager.initialize();
         chaseManager.initialize();
@@ -572,5 +654,37 @@ public class EdenCorrections extends JavaPlugin {
     
     public BossBarManager getBossBarManager() {
         return bossBarManager;
+    }
+    
+    public PenaltyManager getPenaltyManager() {
+        return penaltyManager;
+    }
+    
+    public TimeSyncManager getTimeSyncManager() {
+        return timeSyncManager;
+    }
+    
+    public OfflineDutyManager getOfflineDutyManager() {
+        return offlineDutyManager;
+    }
+    
+    public SpamControlManager getSpamControlManager() {
+        return spamControlManager;
+    }
+    
+    public GuardLootManager getGuardLootManager() {
+        return guardLootManager;
+    }
+    
+    public LuckPermsMetaManager getLuckPermsMetaManager() {
+        return luckPermsMetaManager;
+    }
+    
+    public VaultEconomyManager getVaultEconomyManager() {
+        return vaultEconomyManager;
+    }
+    
+    public CMIIntegration getCMIIntegration() {
+        return cmiIntegration;
     }
 } 

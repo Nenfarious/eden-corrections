@@ -188,6 +188,59 @@ security:
     teleport-protection: true    # Guards cannot be teleported against their will
 
 # ==================================================================
+# PENALTY SYSTEM CONFIGURATION
+# ==================================================================
+
+# Comprehensive penalty and violation management
+penalties:
+  enabled: true
+  escalating-penalties: true
+  max-violations-before-jail: 5
+  reset-time-hours: 24
+  automatic-jail-time: 600  # 10 minutes
+  
+  # Economic fines integration
+  economic-fines:
+    enabled: true
+    minor: 100.0
+    moderate: 250.0
+    major: 500.0
+    severe: 1000.0
+
+# ==================================================================
+# TIME SYNCHRONIZATION CONFIGURATION
+# ==================================================================
+
+# Robust time tracking and synchronization
+time-sync:
+  auto-sync-enabled: true
+  interval-seconds: 30
+  max-discrepancy-seconds: 60
+  strict-validation: true
+
+# ==================================================================
+# OFFLINE DUTY MANAGEMENT
+# ==================================================================
+
+# Handles duty transitions when players go offline
+offline-duty:
+  processing-delay-seconds: 5
+  auto-restore-inventory: true
+  preserve-off-duty-time: true
+  max-offline-hours: 24
+
+# ==================================================================
+# SPAM CONTROL CONFIGURATION
+# ==================================================================
+
+# Command and message spam prevention
+spam-control:
+  command-cooldown: 1000    # milliseconds
+  message-cooldown: 500     # milliseconds
+  max-spam-count: 5
+  spam-timeout: 10000       # milliseconds
+
+# ==================================================================
 # BOSS BAR CONFIGURATION
 # ==================================================================
 
@@ -589,6 +642,45 @@ messages:
       debug-status-disabled: "<color:#FF6B6B>Disabled</color>"
       debug-enabled: "<color:#51CF66>Debug mode enabled!</color>"
       debug-disabled: "<color:#FF6B6B>Debug mode disabled!</color>"
+
+  # === PENALTY SYSTEM MESSAGES ===
+  penalties:
+    minor:
+      warning: "<gradient:#FFA94D:#FFB570>⚠️ Minor Violation</gradient> <color:#ADB5BD>Warning for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
+    moderate:
+      applied: "<gradient:#FF6B6B:#FF8E8E>📋 Moderate Penalty</gradient> <color:#ADB5BD>Penalty applied for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
+    major:
+      applied: "<gradient:#FF6B6B:#FF3838>🚨 Major Penalty</gradient> <color:#ADB5BD>Major penalty applied for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
+    severe:
+      applied: "<gradient:#FF0000:#FF3333>💀 Severe Penalty</gradient> <color:#ADB5BD>Severe penalty applied for <color:#FFB3C6><violation></color>: <color:#FFB3C6><reason></color></color>"
+    fine:
+      applied: "<gradient:#FFE066:#FFD43B>💰 Fine Applied</gradient> <color:#ADB5BD>Fine of <color:#FFB3C6><amount></color> applied: <color:#FFB3C6><reason></color></color>"
+      insufficient-funds: "<gradient:#FF6B6B:#FF8E8E>💸 Insufficient Funds</gradient> <color:#ADB5BD>Cannot pay fine of <color:#FFB3C6><amount></color> - insufficient balance!</color>"
+    restrictions:
+      applied: "<gradient:#FF6B6B:#FF8E8E>🔒 Temporary Restrictions</gradient> <color:#ADB5BD>Restrictions applied for <color:#FFB3C6><duration></color> minutes</color>"
+      lifted: "<gradient:#51CF66:#7ED321>🔓 Restrictions Lifted</gradient> <color:#ADB5BD>Your temporary restrictions have been lifted</color>"
+    automatic-jail: "<gradient:#FF0000:#FF3333>⛓️ Automatic Jail</gradient> <color:#ADB5BD>Jailed for <color:#FFB3C6><time></color> minutes: <color:#FFB3C6><reason></color></color>"
+    escalation:
+      alert: "<gradient:#FF6B6B:#FF3838>🚨 ESCALATION ALERT</gradient> <color:#ADB5BD><color:#FFB3C6><player></color> has <color:#FFB3C6><violations></color> recent violations!</color>"
+    applied:
+      alert: "<gradient:#FF6B6B:#FF3838>📋 PENALTY APPLIED</gradient> <color:#ADB5BD><color:#FFB3C6><severity></color> penalty for <color:#FFB3C6><player></color>: <color:#FFB3C6><violation></color></color>"
+    extreme-escalation: "<gradient:#FF0000:#FF3333>🚨 EXTREME ESCALATION</gradient> <color:#ADB5BD><color:#FFB3C6><player></color> has <color:#FFB3C6><violations></color> violations - immediate attention required!</color>"
+    cleared: "<gradient:#51CF66:#7ED321>✅ Penalties Cleared</gradient> <color:#ADB5BD>All penalties have been cleared from your record</color>"
+
+  # === OFFLINE DUTY MESSAGES ===
+  offline-duty:
+    resumed-on-duty: "<gradient:#51CF66:#7ED321>🔄 Duty Resumed</gradient> <color:#ADB5BD>Welcome back! You were offline for <color:#FFB3C6><offline_time></color> and are still on duty</color>"
+    went-off-duty-offline: "<gradient:#ADB5BD:#868E96>🏠 Off Duty Offline</gradient> <color:#ADB5BD>You went off duty while offline after <color:#FFB3C6><session_time></color> of service</color>"
+    earned-time-offline: "<gradient:#51CF66:#7ED321>🎖️ Time Earned</gradient> <color:#ADB5BD>You earned <color:#FFB3C6><earned_time></color> of off-duty time while offline!</color>"
+    forced-off-duty-absence: "<gradient:#FFA94D:#FFB570>⏰ Extended Absence</gradient> <color:#ADB5BD>Forced off duty due to <color:#FFB3C6><offline_time></color> absence (max: <color:#FFB3C6><max_time></color>)</color>"
+    inventory-restored: "<gradient:#51CF66:#7ED321>📦 Inventory Restored</gradient> <color:#ADB5BD>Your stored inventory has been restored</color>"
+
+  # === SPAM CONTROL MESSAGES ===
+  spam-control:
+    command-cooldown: "<gradient:#FFA94D:#FFB570>⏰ Command Cooldown</gradient> <color:#ADB5BD>Please wait before using <color:#FFB3C6><command></color> again</color>"
+    command-spam-warning: "<gradient:#FF6B6B:#FF8E8E>🚫 Command Spam</gradient> <color:#ADB5BD>Stop spamming commands or you will be temporarily restricted!</color>"
+    message-cooldown: "<gradient:#FFA94D:#FFB570>⏰ Message Cooldown</gradient> <color:#ADB5BD>Please wait before sending another message</color>"
+    message-spam-warning: "<gradient:#FF6B6B:#FF8E8E>🚫 Message Spam</gradient> <color:#ADB5BD>Stop spamming messages or you will be temporarily restricted!</color>"
 
   # === SECURITY MESSAGES ===
   security:

@@ -365,6 +365,14 @@ public class DutyManager {
         // Save data
         plugin.getDataManager().savePlayerData(data);
         
+        // Start time tracking
+        plugin.getTimeSyncManager().startTimeTracking(player, "duty");
+        
+        // Set guard tag if available
+        if (plugin.getLuckPermsMetaManager() != null) {
+            plugin.getLuckPermsMetaManager().setGuardTag(player, data);
+        }
+        
         // Hide boss bar
         plugin.getBossBarManager().hideBossBarByType(player, "duty");
         
@@ -429,9 +437,13 @@ public class DutyManager {
             return false;
         }
         
-        // Calculate duty time
-        long dutyTime = System.currentTimeMillis() - data.getDutyStartTime();
-        data.addDutyTime(dutyTime);
+        // Stop time tracking and get accurate duration
+        long dutyTime = plugin.getTimeSyncManager().stopTimeTracking(player, true).join();
+        if (dutyTime == 0) {
+            // Fallback to manual calculation if time sync failed
+            dutyTime = System.currentTimeMillis() - data.getDutyStartTime();
+            data.addDutyTime(dutyTime / 1000L);
+        }
         
         // Set off duty
         data.setOnDuty(false);
@@ -439,6 +451,11 @@ public class DutyManager {
         
         // Reset notification flag for this off-duty session
         data.setHasBeenNotifiedOfExpiredTime(false);
+        
+        // Remove guard tag if available
+        if (plugin.getLuckPermsMetaManager() != null) {
+            plugin.getLuckPermsMetaManager().removeGuardTag(player);
+        }
         
         // NEW: Restore player's original inventory
         restorePlayerInventory(player);
