@@ -630,7 +630,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     private boolean handleDutyAdminCommand(CommandSender sender, String[] args) {
         if (args.length < 2) {
             plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
-                stringPlaceholder("command", "/corrections duty <list> [args...]"));
+                stringPlaceholder("command", "/corrections duty <list|penalties|resettime> [args...]"));
             return true;
         }
         
@@ -639,6 +639,10 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         switch (action) {
             case "list":
                 return handleDutyList(sender, args);
+            case "penalties":
+                return handleDutyPenalties(sender, args);
+            case "resettime":
+                return handleDutyResetTime(sender, args);
             default:
                 plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
                     stringPlaceholder("subcommand", action));
@@ -663,6 +667,183 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 }
             }
         }
+        return true;
+    }
+    
+    private boolean handleDutyPenalties(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections duty penalties <check|clear> <player>"));
+            return true;
+        }
+        
+        String action = args[2].toLowerCase();
+        
+        if (args.length < 4 && !action.equals("list")) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections duty penalties " + action + " <player>"));
+            return true;
+        }
+        
+        switch (action) {
+            case "check":
+                return handlePenaltyCheck(sender, args[3]);
+            case "clear":
+                return handlePenaltyClear(sender, args[3]);
+            case "list":
+                return handlePenaltyList(sender);
+            default:
+                plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
+                    stringPlaceholder("subcommand", action));
+                return true;
+        }
+    }
+    
+    private boolean handlePenaltyCheck(CommandSender sender, String playerName) {
+        Player target = Bukkit.getPlayer(playerName);
+        if (target == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        PlayerData data = plugin.getDataManager().getPlayerData(target.getUniqueId());
+        if (data == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-data-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Show penalty status
+        if (!data.isOnDuty()) {
+            long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
+            long earnedTime = data.getEarnedOffDutyTime();
+            long overTime = Math.max(0, timeSinceOffDuty - earnedTime);
+            long overTimeMinutes = overTime / (1000L * 60L);
+            
+            if (overTime > 0) {
+                String stage = "None";
+                if (overTimeMinutes >= 30) stage = "Recurring";
+                else if (overTimeMinutes >= 15) stage = "Stage 2";
+                else if (overTimeMinutes >= 5) stage = "Stage 1";
+                
+                sender.sendMessage("§6=== Penalty Status for " + target.getName() + " ===");
+                sender.sendMessage("§e• Off-duty overtime: §c" + overTimeMinutes + " minutes");
+                sender.sendMessage("§e• Penalty stage: §c" + stage);
+                sender.sendMessage("§e• Has been notified: §c" + data.hasBeenNotifiedOfExpiredTime());
+            } else {
+                sender.sendMessage("§a" + target.getName() + " has no current penalties");
+            }
+        } else {
+            sender.sendMessage("§a" + target.getName() + " is currently on duty (no penalties)");
+        }
+        
+        return true;
+    }
+    
+    private boolean handlePenaltyClear(CommandSender sender, String playerName) {
+        Player target = Bukkit.getPlayer(playerName);
+        if (target == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        PlayerData data = plugin.getDataManager().getPlayerData(target.getUniqueId());
+        if (data == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-data-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Clear penalty status
+        data.setHasBeenNotifiedOfExpiredTime(false);
+        data.setOffDutyTime(System.currentTimeMillis()); // Reset off-duty timer
+        data.setEarnedOffDutyTime(10L * 60L * 1000L); // Give 10 minutes earned time
+        
+        // Remove any penalty effects
+        target.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOW);
+        target.removePotionEffect(org.bukkit.potion.PotionEffectType.WEAKNESS);
+        target.removePotionEffect(org.bukkit.potion.PotionEffectType.HUNGER);
+        
+        // Clear penalty boss bar
+        plugin.getBossBarManager().hideBossBar(target);
+        
+        plugin.getDataManager().savePlayerData(data);
+        
+        sender.sendMessage("§a✅ Cleared all penalties for " + target.getName());
+        plugin.getMessageManager().sendMessage(target, "duty.penalties.cleared");
+        
+        return true;
+    }
+    
+    private boolean handlePenaltyList(CommandSender sender) {
+        sender.sendMessage("§6=== Players with Active Penalties ===");
+        
+        boolean foundPenalties = false;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            PlayerData data = plugin.getDataManager().getPlayerData(player.getUniqueId());
+            if (data != null && !data.isOnDuty()) {
+                long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
+                long earnedTime = data.getEarnedOffDutyTime();
+                long overTime = Math.max(0, timeSinceOffDuty - earnedTime);
+                long overTimeMinutes = overTime / (1000L * 60L);
+                
+                if (overTime > 0) {
+                    String stage = "None";
+                    if (overTimeMinutes >= 30) stage = "§5Recurring";
+                    else if (overTimeMinutes >= 15) stage = "§cStage 2";
+                    else if (overTimeMinutes >= 5) stage = "§eStage 1";
+                    
+                    sender.sendMessage("§e• §a" + player.getName() + " §7- " + stage + " §7(" + overTimeMinutes + "min overtime)");
+                    foundPenalties = true;
+                }
+            }
+        }
+        
+        if (!foundPenalties) {
+            sender.sendMessage("§aNo players currently have active penalties");
+        }
+        
+        return true;
+    }
+    
+    private boolean handleDutyResetTime(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections duty resettime <player>"));
+            return true;
+        }
+        
+        String playerName = args[2];
+        Player target = Bukkit.getPlayer(playerName);
+        if (target == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        PlayerData data = plugin.getDataManager().getPlayerData(target.getUniqueId());
+        if (data == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-data-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        // Reset time calculations to prevent "20299 days" type issues
+        data.setOffDutyTime(System.currentTimeMillis() - (5L * 60L * 1000L)); // 5 minutes ago
+        data.setEarnedOffDutyTime(10L * 60L * 1000L); // 10 minutes earned time
+        data.setHasBeenNotifiedOfExpiredTime(false);
+        
+        if (data.isOnDuty()) {
+            data.setDutyStartTime(System.currentTimeMillis());
+        }
+        
+        plugin.getDataManager().savePlayerData(data);
+        
+        sender.sendMessage("§a✅ Reset time calculations for " + target.getName());
+        plugin.getMessageManager().sendMessage(target, "admin.time-reset-notice");
+        
         return true;
     }
     
@@ -1026,7 +1207,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                     completions.addAll(Arrays.asList("list", "end", "endall"));
                     break;
                 case "duty":
-                    completions.addAll(Arrays.asList("list"));
+                    completions.addAll(Arrays.asList("list", "penalties", "resettime"));
                     break;
                 case "system":
                     completions.addAll(Arrays.asList("stats", "debug"));
@@ -1040,6 +1221,10 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 completions.addAll(getOnlinePlayerNames());
             } else if (subCommand.equals("chase") && action.equals("end")) {
                 completions.addAll(getOnlinePlayerNames());
+            } else if (subCommand.equals("duty") && action.equals("penalties")) {
+                completions.addAll(Arrays.asList("check", "clear", "list"));
+            } else if (subCommand.equals("duty") && action.equals("resettime")) {
+                completions.addAll(getOnlinePlayerNames());
             } else if (subCommand.equals("system") && action.equals("debug")) {
                 completions.addAll(Arrays.asList("on", "off", "rank", "messages", "forcereload"));
             }
@@ -1048,7 +1233,9 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             String action = args[1].toLowerCase();
             String option = args[2].toLowerCase();
             
-            if (subCommand.equals("system") && action.equals("debug") && option.equals("rank")) {
+            if (subCommand.equals("duty") && action.equals("penalties") && (option.equals("check") || option.equals("clear"))) {
+                completions.addAll(getOnlinePlayerNames());
+            } else if (subCommand.equals("system") && action.equals("debug") && option.equals("rank")) {
                 completions.addAll(getOnlinePlayerNames());
             }
         }

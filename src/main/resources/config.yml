@@ -378,6 +378,12 @@ messages:
       left-region: "<gradient:#FF6B6B:#FF8E8E>🚪 Left Region</gradient> <color:#ADB5BD>Duty activation cancelled - you left the guard station!</color>"
       combat-active: "<gradient:#FFA94D:#FFB570>⚔️ Combat Active</gradient> <color:#ADB5BD>You cannot change duty status while in combat!</color>"
       wanted-active: "<gradient:#FF6B6B:#FF8E8E>🚨 Wanted Status</gradient> <color:#ADB5BD>You cannot go on duty while wanted!</color>"
+    
+    penalties:
+      stage1-applied: "<gradient:#FFE066:#FFD43B>⚠️ Stage 1 Penalty</gradient> <color:#ADB5BD>You've exceeded your off-duty time by <color:#FFB3C6><overtime></color> minutes. Minor slowness applied!</color>"
+      stage2-applied: "<gradient:#FF6B6B:#FF8E8E>⚠️ Stage 2 Penalty</gradient> <color:#ADB5BD>You've exceeded your off-duty time by <color:#FFB3C6><overtime></color> minutes. Moderate penalties applied!</color>"
+      recurring-applied: "<gradient:#FF0000:#FF3333>💀 Maximum Penalty</gradient> <color:#ADB5BD>You've exceeded your off-duty time by <color:#FFB3C6><overtime></color> minutes. Severe penalties applied!</color>"
+      cleared: "<gradient:#51CF66:#7ED321>✅ Penalties Cleared</gradient> <color:#ADB5BD>All duty penalties have been cleared from your record!</color>"
 
   # === CHASE SYSTEM ===
   chase:
@@ -539,7 +545,7 @@ messages:
       divider: "<gradient:#9D4EDD:#06FFA5>╠═══════════════════════════════════════════════════════════════╣</gradient>"
       wanted: "<gradient:#06FFA5:#00E5FF>🚨 /corrections wanted</gradient> <color:#FFB3C6><set|clear|check|list></color> <color:#ADB5BD>- Manage wanted levels</color>"
       chase: "<gradient:#06FFA5:#00E5FF>🏃 /corrections chase</gradient> <color:#FFB3C6><list|end|endall></color> <color:#ADB5BD>- Manage chase system</color>"
-      duty: "<gradient:#06FFA5:#00E5FF>🛡️ /corrections duty</gradient> <color:#FFB3C6><force|time|list></color> <color:#ADB5BD>- Manage duty system</color>"
+      duty: "<gradient:#06FFA5:#00E5FF>🛡️ /corrections duty</gradient> <color:#FFB3C6><list|penalties|resettime></color> <color:#ADB5BD>- Manage duty system & penalties</color>"
       player: "<gradient:#06FFA5:#00E5FF>👤 /corrections player</gradient> <color:#FFB3C6><info|reset></color> <color:#ADB5BD>- Player management</color>"
       system: "<gradient:#06FFA5:#00E5FF>⚙️ /corrections system</gradient> <color:#FFB3C6><stats|debug></color> <color:#ADB5BD>- System information</color>"
       reload: "<gradient:#06FFA5:#00E5FF>🔄 /corrections reload</gradient> <color:#ADB5BD>- Reload configuration</color>"
@@ -550,7 +556,7 @@ messages:
         header: "=== EdenCorrections Admin Commands ==="
         wanted: "/corrections wanted <set|clear|check|list> - Manage wanted levels"
         chase: "/corrections chase <list|end|endall> - Manage chase system"
-        duty: "/corrections duty <list> - Manage duty system"
+        duty: "/corrections duty <list|penalties|resettime> - Manage duty system & penalties"
         player: "/corrections player <info|reset> - Player management"
         system: "/corrections system <stats|debug> - System information"
         reload: "/corrections reload - Reload configuration"
@@ -589,6 +595,7 @@ messages:
       debug-status-disabled: "<color:#FF6B6B>Disabled</color>"
       debug-enabled: "<color:#51CF66>Debug mode enabled!</color>"
       debug-disabled: "<color:#FF6B6B>Debug mode disabled!</color>"
+    time-reset-notice: "<gradient:#51CF66:#7ED321>⏰ Time Reset</gradient> <color:#ADB5BD>Your duty time calculations have been reset by an administrator</color>"
 
   # === SECURITY MESSAGES ===
   security:
