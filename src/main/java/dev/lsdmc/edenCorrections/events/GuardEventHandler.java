@@ -25,6 +25,9 @@ import java.util.logging.Logger;
 
 import static dev.lsdmc.edenCorrections.managers.MessageManager.*;
 import org.bukkit.Location;
+import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.inventory.InventoryAction;
+import java.util.UUID;
 
 public class GuardEventHandler implements Listener {
     
@@ -54,14 +57,82 @@ public class GuardEventHandler implements Listener {
             plugin.getDataManager().savePlayerData(data);
         }
         
+        // Handle inventory restoration logic
+        handleInventoryOnJoin(player, data);
+        
+        // Restore guard tag if player was on duty before restart
+        plugin.getGuardTagManager().restoreGuardTagOnJoin(player);
+        
         if (plugin.getConfigManager().isDebugMode()) {
             logger.info("Player " + player.getName() + " joined - Data loaded/created");
+        }
+    }
+    
+    /**
+     * Handle inventory restoration logic when a player joins
+     * @param player the player who joined
+     * @param data the player's data
+     */
+    private void handleInventoryOnJoin(Player player, PlayerData data) {
+        UUID playerId = player.getUniqueId();
+        
+        // Check if player has stored inventory data
+        boolean hasStoredInventory = plugin.getDataManager().hasStoredInventory(playerId);
+        
+        if (data.isOnDuty()) {
+            // Player is on duty - they should have a guard kit
+            if (!plugin.getDutyManager().hasGuardKitItems(player)) {
+                String guardRank = data.getGuardRank();
+                if (guardRank != null) {
+                    plugin.getDutyManager().giveGuardKitPublic(player, guardRank);
+                    if (plugin.getConfigManager().isDebugMode()) {
+                        logger.info("DEBUG: Restored guard kit for " + player.getName() + " on join (was on duty)");
+                    }
+                }
+            }
+            
+            // If they have stored inventory, keep it for when they go off duty later
+            if (hasStoredInventory && plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: Preserved stored inventory for " + player.getName() + " (will restore when they go off duty)");
+            }
+        } else {
+            // Player is off duty - restore their original inventory if they have stored inventory
+            if (hasStoredInventory) {
+                plugin.getDutyManager().restorePlayerInventoryPublic(player);
+                if (plugin.getConfigManager().isDebugMode()) {
+                    logger.info("DEBUG: Restored original inventory for " + player.getName() + " on join (was off duty)");
+                }
+            }
         }
     }
     
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
+        
+        // Handle guards going off duty automatically on logout to prevent inventory/kit inconsistencies
+        if (plugin.getDutyManager().hasGuardPermission(player) && plugin.getDutyManager().isOnDuty(player)) {
+            PlayerData data = plugin.getDataManager().getPlayerData(player.getUniqueId());
+            if (data != null) {
+                // Force guard off duty on logout
+                data.setOnDuty(false);
+                data.setOffDutyTime(System.currentTimeMillis());
+                
+                // Reset notification flag for future sessions
+                data.setHasBeenNotifiedOfExpiredTime(false);
+                
+                // Remove guard tag
+                plugin.getGuardTagManager().removeGuardTag(player);
+                
+                // Restore their original inventory (removes guard kit)
+                plugin.getDutyManager().restorePlayerInventoryPublic(player);
+                
+                logger.info("Automatically set guard " + player.getName() + " to off duty on logout");
+                
+                // Save the updated data immediately
+                plugin.getDataManager().savePlayerData(data);
+            }
+        }
         
         // Handle player leaving during chase
         if (plugin.getDataManager().isPlayerBeingChased(player.getUniqueId())) {
@@ -86,7 +157,7 @@ public class GuardEventHandler implements Listener {
         // Comprehensive cleanup for all systems
         cleanupPlayerSystems(player);
         
-        // Save player data
+        // Save player data (again for non-guards or as backup)
         PlayerData data = plugin.getDataManager().getPlayerData(player.getUniqueId());
         if (data != null) {
             plugin.getDataManager().savePlayerData(data);
@@ -107,7 +178,10 @@ public class GuardEventHandler implements Listener {
         // Clean up contraband system
         plugin.getContrabandManager().cleanupPlayer(player);
         
-        // Clean up message system (boss bars, action bars)
+        // Clean up boss bar system
+        plugin.getBossBarManager().cleanupPlayer(player);
+        
+        // Clean up message system (action bars)
         plugin.getMessageManager().cleanupPlayer(player);
     }
     
@@ -115,6 +189,20 @@ public class GuardEventHandler implements Listener {
     public void onPlayerDeath(PlayerDeathEvent event) {
         Player victim = event.getEntity();
         Player killer = victim.getKiller();
+        
+        // Handle guard death loot system FIRST (before any other processing)
+        if (plugin.getDutyManager().hasGuardPermission(victim) && plugin.getDutyManager().isOnDuty(victim)) {
+            // Clear the death drops - guards don't drop their actual inventory
+            event.getDrops().clear();
+            event.setDroppedExp(0);
+            
+            // Use the guard loot system instead
+            plugin.getGuardLootManager().handleGuardDeath(victim);
+            
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("Guard " + victim.getName() + " died on duty - using loot system instead of inventory drops");
+            }
+        }
         
         if (killer != null && killer != victim) {
             // Enhanced guard protection logic
@@ -184,9 +272,40 @@ public class GuardEventHandler implements Listener {
         Player victim = (Player) event.getEntity();
         Player attacker = (Player) event.getDamager();
         
-        // Trigger combat timers for both players
-        plugin.getChaseManager().handleCombatEvent(victim);
-        plugin.getChaseManager().handleCombatEvent(attacker);
+        // Security check: Can victim be attacked?
+        if (!plugin.getSecurityManager().canPlayerBeAttacked(victim)) {
+            event.setCancelled(true);
+            plugin.getMessageManager().sendMessage(attacker, "security.guard-immunity.combat-protected",
+                playerPlaceholder("player", victim));
+            plugin.getSecurityManager().logSecurityViolation("attack", attacker, victim);
+            return;
+        }
+        
+        // Only trigger combat timers if players are involved in active chases
+        boolean victimInChase = plugin.getDataManager().isPlayerBeingChased(victim.getUniqueId()) || 
+                               plugin.getDataManager().isGuardChasing(victim.getUniqueId());
+        boolean attackerInChase = plugin.getDataManager().isPlayerBeingChased(attacker.getUniqueId()) || 
+                                 plugin.getDataManager().isGuardChasing(attacker.getUniqueId());
+        
+        if (victimInChase) {
+            plugin.getChaseManager().handleCombatEvent(victim);
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: Combat timer activated for " + victim.getName() + " (involved in chase)");
+            }
+        }
+        
+        if (attackerInChase) {
+            plugin.getChaseManager().handleCombatEvent(attacker);
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: Combat timer activated for " + attacker.getName() + " (involved in chase)");
+            }
+        }
+        
+        // Log non-chase PvP for debugging if enabled
+        if (plugin.getConfigManager().isDebugMode() && !victimInChase && !attackerInChase) {
+            logger.info("DEBUG: PvP between " + attacker.getName() + " and " + victim.getName() + 
+                       " - no combat timer (not involved in chases)");
+        }
         
         // Check if player is attacking a guard (existing logic)
         if (plugin.getDutyManager().hasGuardPermission(victim) && plugin.getDutyManager().isOnDuty(victim)) {
@@ -212,6 +331,14 @@ public class GuardEventHandler implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerTeleport(PlayerTeleportEvent event) {
         Player player = event.getPlayer();
+        
+        // Security check: Can player be teleported?
+        if (!plugin.getSecurityManager().canPlayerBeTeleported(player)) {
+            event.setCancelled(true);
+            plugin.getMessageManager().sendMessage(player, "security.guard-immunity.teleport-blocked");
+            plugin.getSecurityManager().logSecurityViolation("teleport", player, null);
+            return;
+        }
         
         // Block teleportation during combat timer
         if (plugin.getChaseManager().isInCombat(player)) {
@@ -305,12 +432,20 @@ public class GuardEventHandler implements Listener {
         // Block crafting for guards on duty
         if (plugin.getDutyManager().hasGuardPermission(player) && plugin.getDutyManager().isOnDuty(player)) {
             if (plugin.getConfigManager().isGuardCraftingBlocked()) {
-                // Check if it's a crafting inventory
-                String inventoryTitle = event.getView().getTitle().toLowerCase();
-                if (inventoryTitle.contains("crafting") || inventoryTitle.contains("workbench") ||
-                    inventoryTitle.contains("enchanting") || inventoryTitle.contains("anvil")) {
-                    event.setCancelled(true);
-                    plugin.getMessageManager().sendMessage(player, "restrictions.crafting");
+                // Only block clicks in actual crafting interfaces that would result in crafting
+                if (event.getClickedInventory() != null) {
+                    InventoryType clickedType = event.getClickedInventory().getType();
+                    if (clickedType == InventoryType.WORKBENCH || 
+                        clickedType == InventoryType.ENCHANTING ||
+                        clickedType == InventoryType.ANVIL) {
+                        // Only block if clicking in the crafting result slot or trying to craft
+                        if (event.getSlot() == 0 || // Result slot is usually slot 0 in crafting tables
+                            (event.getAction() == InventoryAction.MOVE_TO_OTHER_INVENTORY && 
+                             event.getClickedInventory().getType() == InventoryType.WORKBENCH)) {
+                            event.setCancelled(true);
+                            plugin.getMessageManager().sendMessage(player, "restrictions.crafting");
+                        }
+                    }
                 }
             }
         }
@@ -353,6 +488,35 @@ public class GuardEventHandler implements Listener {
         if (plugin.getJailManager().isInJailCountdown(player)) {
             // This could be implemented to cancel jail countdown if player moves
             // For now, we'll allow some movement tolerance in the JailManager itself
+        }
+        
+        // Check chase area restrictions for chased players
+        if (plugin.getDataManager().isPlayerBeingChased(player.getUniqueId()) && 
+            plugin.getConfigManager().shouldBlockRestrictedAreas()) {
+            
+            Location from = event.getFrom();
+            Location to = event.getTo();
+            
+            if (to != null && !from.getWorld().equals(to.getWorld())) {
+                // World change - check if destination is restricted
+                if (plugin.getChaseManager().isPlayerInRestrictedArea(player)) {
+                    event.setCancelled(true);
+                    plugin.getMessageManager().sendMessage(player, "chase.blocking.area-entry");
+                    return;
+                }
+            } else if (to != null) {
+                // Same world movement - check if entering restricted area
+                String[] restrictedAreas = plugin.getConfigManager().getChaseRestrictedAreas();
+                for (String area : restrictedAreas) {
+                    if (plugin.getWorldGuardUtils().isLocationInRegion(to, area) && 
+                        !plugin.getWorldGuardUtils().isLocationInRegion(from, area)) {
+                        // Entering restricted area
+                        event.setCancelled(true);
+                        plugin.getMessageManager().sendMessage(player, "chase.blocking.area-entry");
+                        return;
+                    }
+                }
+            }
         }
         
         // Update chase distance monitoring is handled by the ChaseManager task

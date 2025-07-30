@@ -92,15 +92,7 @@ public class WorldGuardUtils {
                 logger.warning("Configured duty region '" + dutyRegion + "' does not exist in any world");
             }
             
-            // Check no-chase zones
-            String[] safeZones = plugin.getConfigManager().getNoChaseZones();
-            for (String zone : safeZones) {
-                if (!regionExists(zone.trim())) {
-                    logger.warning("Configured safe zone '" + zone + "' does not exist in any world");
-                }
-            }
-            
-            // Check no-chase zones
+            // Check no-chase zones (safe zones)
             String[] noChaseZones = plugin.getConfigManager().getNoChaseZones();
             for (String zone : noChaseZones) {
                 if (!regionExists(zone.trim())) {
@@ -255,7 +247,7 @@ public class WorldGuardUtils {
     }
     
     /**
-     * Check if a player is in a safe zone
+     * Check if a player is in a safe zone (no-chase zone)
      */
     public boolean isPlayerInSafeZone(Player player) {
         if (!worldGuardEnabled) {
@@ -267,15 +259,10 @@ public class WorldGuardUtils {
     }
     
     /**
-     * Check if a player is in a no-chase zone
+     * Check if a player is in a no-chase zone (alias for isPlayerInSafeZone)
      */
     public boolean isPlayerInNoChaseZone(Player player) {
-        if (!worldGuardEnabled) {
-            return false; // No restrictions if WorldGuard not available
-        }
-        
-        String[] noChaseZones = plugin.getConfigManager().getNoChaseZones();
-        return isPlayerInAnyRegion(player, noChaseZones);
+        return isPlayerInSafeZone(player);
     }
     
     /**
@@ -448,8 +435,8 @@ public class WorldGuardUtils {
             return true; // Allow chasing anywhere if WorldGuard not available
         }
         
-        // Cannot chase in safe zones or no-chase zones
-        return !isPlayerInSafeZone(player) && !isPlayerInNoChaseZone(player);
+        // Cannot chase in safe zones (no-chase zones)
+        return !isPlayerInSafeZone(player);
     }
     
     /**
@@ -482,10 +469,7 @@ public class WorldGuardUtils {
         
         // Add special zone indicators
         if (isPlayerInSafeZone(player)) {
-            context.append(" [SAFE ZONE]");
-        }
-        if (isPlayerInNoChaseZone(player)) {
-            context.append(" [NO CHASE]");
+            context.append(" [SAFE ZONE/NO CHASE]");
         }
         if (isPlayerInDutyRequiredZone(player)) {
             context.append(" [DUTY REQUIRED]");

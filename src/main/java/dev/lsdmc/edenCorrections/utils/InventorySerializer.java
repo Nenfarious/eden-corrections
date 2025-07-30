@@ -27,9 +27,14 @@ public class InventorySerializer {
     /**
      * Serialize a player's entire inventory to JSON
      * @param player the player whose inventory to serialize
-     * @return JSON string representation of the inventory
+     * @return JSON string representation of the inventory, or null if failed
      */
     public static String serializePlayerInventory(Player player) {
+        if (player == null) {
+            logger.warning("Cannot serialize inventory for null player");
+            return null;
+        }
+        
         try {
             PlayerInventory inventory = player.getInventory();
             JsonObject inventoryJson = new JsonObject();
@@ -59,9 +64,12 @@ public class InventorySerializer {
             metadata.addProperty("timestamp", System.currentTimeMillis());
             metadata.addProperty("playerName", player.getName());
             metadata.addProperty("playerUuid", player.getUniqueId().toString());
+            metadata.addProperty("version", "1.0"); // For future compatibility
             inventoryJson.add("metadata", metadata);
             
-            return gson.toJson(inventoryJson);
+            String result = gson.toJson(inventoryJson);
+            
+            return result;
             
         } catch (Exception e) {
             logger.severe("Failed to serialize inventory for " + player.getName() + ": " + e.getMessage());
@@ -77,9 +85,20 @@ public class InventorySerializer {
      * @return true if successful, false otherwise
      */
     public static boolean deserializePlayerInventory(Player player, String inventoryJson) {
+        if (player == null) {
+            logger.warning("Cannot deserialize inventory for null player");
+            return false;
+        }
+        
+        if (inventoryJson == null || inventoryJson.trim().isEmpty()) {
+            logger.warning("Cannot deserialize null or empty inventory data for " + player.getName());
+            return false;
+        }
+        
         try {
-            if (inventoryJson == null || inventoryJson.trim().isEmpty()) {
-                logger.warning("Cannot deserialize null or empty inventory data for " + player.getName());
+            // Validate the JSON structure first
+            if (!validateInventoryData(inventoryJson)) {
+                logger.warning("Invalid inventory data format for " + player.getName());
                 return false;
             }
             
@@ -122,7 +141,10 @@ public class InventorySerializer {
             if (inventoryObj.has("metadata")) {
                 JsonObject metadata = inventoryObj.getAsJsonObject("metadata");
                 if (metadata.has("heldItemSlot")) {
-                    inventory.setHeldItemSlot(metadata.get("heldItemSlot").getAsInt());
+                    int heldSlot = metadata.get("heldItemSlot").getAsInt();
+                    if (heldSlot >= 0 && heldSlot < 9) {
+                        inventory.setHeldItemSlot(heldSlot);
+                    }
                 }
             }
             
@@ -536,5 +558,41 @@ public class InventorySerializer {
             logger.warning("Invalid inventory data format: " + e.getMessage());
             return false;
         }
+    }
+    
+    /**
+     * Check if a player's inventory is empty (no items in main inventory, armor, or off-hand)
+     * @param player the player to check
+     * @return true if inventory is empty, false otherwise
+     */
+    public static boolean isInventoryEmpty(Player player) {
+        if (player == null) {
+            return true;
+        }
+        
+        PlayerInventory inventory = player.getInventory();
+        
+        // Check main inventory
+        for (int i = 0; i < 36; i++) {
+            ItemStack item = inventory.getItem(i);
+            if (item != null && item.getType() != Material.AIR) {
+                return false;
+            }
+        }
+        
+        // Check armor
+        for (ItemStack armor : inventory.getArmorContents()) {
+            if (armor != null && armor.getType() != Material.AIR) {
+                return false;
+            }
+        }
+        
+        // Check off-hand
+        ItemStack offhand = inventory.getItemInOffHand();
+        if (offhand != null && offhand.getType() != Material.AIR) {
+            return false;
+        }
+        
+        return true;
     }
 } 

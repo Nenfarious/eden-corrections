@@ -1,113 +1,162 @@
 # EdenCorrections
 
-A corrections / prison system plugin for Minecraft that lets your guards behave like professionals (and look fabulous while doing it) – duty toggles, chases, contraband searches, jail timers, duty banking and more. Fun fact: the codebase was rebuilt **three** times before we liked it enough to hand it to testers. Third time’s the charm. 🚀
+A fully custom guard management system for Eden Prison S4. EdenCorrections provides a complete guard duty system with dynamic wanted levels, chase mechanics, contraband management, and integrated economy features.
 
-## Why You Might Want It (30-second pitch)
+## Features
 
-• Guards: rank-aware, WorldGuard-checked duty system with auto-kits & inventory caching  
-• Criminals: dynamic wanted levels, 100-block chases, jail time that fits the crime  
-• Economy: turn guard hours into tokens via CoinsEngine (`/et`)  
-• Beautiful messages: purple-cyan gradients & emojis out-of-the-box  
-• SQLite **or** MySQL – pick your poison
+### Guard System
+- **Rank-based duty system** with LuckPerms integration
+- **WorldGuard region restrictions** for duty activation
+- **Automatic kit distribution** via CMI integration
+- **Inventory caching** during duty transitions
+- **Duty banking** - convert duty time to economy tokens
 
----
+### Criminal Management
+- **Dynamic wanted levels** (1-5 stars) with automatic decay
+- **Realistic chase mechanics** with distance tracking and safe zones
+- **Configurable jail sentences** based on crime severity
+- **Offline player jailing** capabilities
+
+### Contraband System
+- **Customizable contraband lists** for different item types
+- **Drug testing mechanics** with configurable compliance timers
+- **Bonus duty time** rewards for successful searches
+
+### Technical Features
+- **Dual database support** - SQLite and MySQL with HikariCP
+- **Async operations** for optimal performance
+- **PlaceholderAPI integration** with comprehensive placeholders
+- **MiniMessage support** for rich text formatting
+- **CoinsEngine integration** for economy features
 
 ## Quick Start
 
-1. Drop `EdenCorrections.jar` in `/plugins`
-2. Restart the server once – the plugin will create `config.yml`  
-3. Edit the **few** things you care about (database type, duty region, kit names)  
-4. `/edenreload` in-game to apply changes  
-5. Give guards the `edencorrections.guard` permission – they can `/duty` immediately
+1. Download `EdenCorrections.jar` and place it in your `/plugins` folder
+2. Restart your server - the plugin will generate a default `config.yml`
+3. Configure essential settings:
+   - Database type (SQLite/MySQL)
+   - Duty region name
+   - Kit mappings for different ranks
+4. Use `/edenreload` in-game to apply configuration changes
+5. Assign the `edencorrections.guard` permission to your staff members
 
-That’s it. Everything else ships with sensible defaults.
+## Commands
 
----
+### Guard Commands
+| Command | Description |
+|---------|-------------|
+| `/duty` | Toggle duty status (locks/unlocks inventory, applies restrictions) |
+| `/chase <player>` | Initiate a chase with the specified player |
+| `/chase capture` | Arrest a player at close range |
+| `/chase end` | End the current chase |
+| `/jail <player> [reason]` | Send a player to jail with automatic sentencing |
+| `/sword <player>` | Request player to drop weapons |
+| `/bow <player>` | Request player to drop ranged weapons |
+| `/armor <player>` | Request player to remove armor |
+| `/drugs <player>` | Search player for contraband |
+| `/drugtest <player>` | Administer a drug test |
+| `/dutybank convert` | Convert duty time to economy tokens |
+| `/dutybank status` | Check current duty banking status |
 
-## Command Cheat-Sheet
+### Admin Commands
+| Command | Description |
+|---------|-------------|
+| `/corrections wanted set <player> <level>` | Set player's wanted level (0-5) |
+| `/corrections chase list` | View all active chases |
+| `/corrections chase end <player>` | End a specific chase |
+| `/corrections chase endall` | End all active chases |
+| `/corrections duty list` | List all players on/off duty |
+| `/corrections system stats` | View system statistics |
+| `/corrections system debug` | Toggle debug mode |
+| `/corrections reload` | Reload configuration and messages |
+| `/jailoffline <player> [reason]` | Jail an offline player |
 
-| Command | Who | Notes |
-|---------|-----|-------|
-| `/duty` | Guard | Toggle duty (locks / unlocks inventory, kits, restrictions) |
-| `/chase <player>` | Guard | Begin 100-block chase |
-| `/chase capture` | Guard | Arrest at close range |
-| `/chase end` | Guard | End current chase |
-| `/jail <player> [reason]` | Guard | Send player to jail (auto time) |
-| `/sword /bow /armor /drugs <player>` | Guard | Contraband requests |
-| `/drugtest <player>` | Guard | Drug test kit |
-| `/dutybank convert|status` | Guard | Convert duty seconds → tokens |
-| `/corrections …` | Admin | See “Admin corner” below |
+## Configuration
 
----
-
-## Core Systems In One Breath
-
-• **Guard Duty** – immobilisation countdown, LuckPerms rank detection, CMI kits, inventory saved / restored, WorldGuard region checks.  
-• **Wanted** – 1-5 stars, auto decay, violator messages, stars placeholder.  
-• **Chase** – distance warnings, safe-zone cancel, boss bar progress, combat timer block.  
-• **Jail** – 10-second countdown, offline jail command, stats tracking.  
-• **Contraband** – configurable item lists, 10-second compliance, drug tests, bonus duty minutes.  
-• **Duty Banking** – 100 sec = 1 token (configurable), optional autocash-out.  
-• **Database** – Async SQLite / MySQL via Hikari, plus inventory cache table.  
-• **Messages** – MiniMessage gradients, PlaceholderAPI placeholders out-of-the-box.
-
-(Yes, that was technically one sentence. Breathe now.)
-
----
-
-## Permissions Snapshot
-
-```
-edencorrections.guard               # base permission
-edencorrections.guard.<rank>        # trainee|private|officer|sergeant|captain|warden
-edencorrections.guard.chase|jail|contraband|banking
-edencorrections.admin               # top-level admin
-```
-
----
-
-## Tiny Config Teaser
+The plugin uses a comprehensive configuration system with detailed comments. Key sections include:
 
 ```yaml
 database:
-  type: sqlite          # or mysql
+  type: sqlite          # sqlite or mysql
+  # Database connection settings
+
 guard-system:
-  duty-region: "guard"  # WorldGuard region where /duty works
+  duty-region: "guard"  # WorldGuard region for duty activation
   kit-mappings:
-    trainee: trainee
-    warden: warden
+    trainee: trainee-kit
+    private: private-kit
+    officer: officer-kit
+    sergeant: sergeant-kit
+    captain: captain-kit
+    warden: warden-kit
+
 duty-banking:
   enabled: true
   conversion-rate: 100  # seconds per token
+  auto-cashout: false   # automatically convert duty time
+
+chase-system:
+  max-distance: 100     # maximum chase distance in blocks
+  safe-zones: []        # regions where chases are cancelled
 ```
 
-Don’t worry, the full `config.yml` is heavily commented.
+## Permissions
 
----
+### Base Permissions
+- `edencorrections.guard` - Base guard permission
+- `edencorrections.admin` - Administrative access
 
-## Admin Corner
+### Rank-Specific Permissions
+- `edencorrections.guard.trainee`
+- `edencorrections.guard.private`
+- `edencorrections.guard.officer`
+- `edencorrections.guard.sergeant`
+- `edencorrections.guard.captain`
+- `edencorrections.guard.warden`
 
-* `/corrections wanted set <player> <level>` – adjust stars  
-* `/corrections chase list|end|endall` – view / end chases  
-* `/corrections duty list` – who’s on / off duty  
-* `/corrections system stats|debug` – live stats & toggle debug  
-* `/corrections reload` – reload config / messages  
-* `/jailoffline <player> [reason]` – jail offline player
+### Feature Permissions
+- `edencorrections.guard.chase` - Chase system access
+- `edencorrections.guard.jail` - Jail system access
+- `edencorrections.guard.contraband` - Contraband system access
+- `edencorrections.guard.banking` - Duty banking access
 
----
+## Placeholders
 
-## Placeholders (Selection)
+EdenCorrections provides extensive PlaceholderAPI integration:
 
 ```
-%edencorrections_duty_status%   → On Duty / Off Duty
-%edencorrections_wanted_level%  → 0-5
-%edencorrections_banking_tokens%→ banked tokens
+%edencorrections_duty_status%      # Current duty status
+%edencorrections_wanted_level%     # Player's wanted level (0-5)
+%edencorrections_banking_tokens%   # Banked duty tokens
+%edencorrections_duty_time%        # Current duty time in seconds
+%edencorrections_jail_time%        # Remaining jail time
+%edencorrections_chase_status%     # Current chase status
 ```
 
-More in `/plugins/EdenCorrections/placeholder_list.txt` (generated on first run).
+A complete placeholder list is generated at `/plugins/EdenCorrections/placeholder_list.txt` on first run.
 
----
+## Dependencies
 
-## Contributing / Bugs
+### Required
+- **WorldGuard** - Region-based duty restrictions
+- **LuckPerms** - Rank detection and permissions
+- **PlaceholderAPI** - Placeholder integration
 
-Open an issue, attach logs, include steps – we’ll look after our inmates. 
+### Optional
+- **CMI** - Kit system integration
+- **CoinsEngine** - Economy integration (`/et` commands)
+
+## Support
+
+For issues, feature requests, or questions:
+1. Check the [wiki](wiki/) for detailed documentation
+2. Review the configuration comments for customization options
+3. Open an issue with:
+   - Server version and plugin version
+   - Relevant logs
+   - Steps to reproduce the problem
+   - Expected vs actual behavior
+
+## Contributing
+
+Contributions are welcome! Please ensure your code follows the existing style and includes appropriate documentation. 

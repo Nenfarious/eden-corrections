@@ -4,25 +4,26 @@ import dev.lsdmc.edenCorrections.EdenCorrections;
 import dev.lsdmc.edenCorrections.models.PlayerData;
 import dev.lsdmc.edenCorrections.utils.InventorySerializer;
 import net.luckperms.api.LuckPerms;
+import net.luckperms.api.LuckPermsProvider;
 import net.luckperms.api.model.user.User;
-import net.luckperms.api.node.types.InheritanceNode;
-import net.kyori.adventure.bossbar.BossBar;
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.RegisteredServiceProvider;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 import static dev.lsdmc.edenCorrections.managers.MessageManager.*;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 public class DutyManager {
     
@@ -119,24 +120,329 @@ public class DutyManager {
         }
     }
     
-    /**
-     * NEW: Check if off-duty guards have consumed their earned time
-     */
     private void checkOffDutyTimeConsumption(Player player, PlayerData data) {
-        if (data.isOnDuty()) return;
+        if (data.isOnDuty()) {
+            // Player went back on duty - clear any penalty tracking
+            if (data.isPenaltyTrackingActive()) {
+                clearOffDutyPenalties(player, data);
+            }
+            return;
+        }
         
         long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
         long earnedTime = data.getEarnedOffDutyTime();
         
         if (timeSinceOffDuty > earnedTime) {
-            // They've used up their earned off-duty time
-            // Only notify once to prevent spam
-            if (!data.hasBeenNotifiedOfExpiredTime()) {
-                requireReturnToDuty(player, data);
-                data.setHasBeenNotifiedOfExpiredTime(true);
+            // They've used up their earned off-duty time - apply escalating penalties
+            
+            // Safeguard: If they've been off duty for an extremely long time (more than 30 days),
+            // give them a fresh start to prevent permanent penalties
+            long maxReasonableOffDutyTime = 30 * 24 * 60 * 60 * 1000L; // 30 days
+            if (timeSinceOffDuty > maxReasonableOffDutyTime) {
+                logger.warning("Player " + player.getName() + " has been off duty for " + 
+                             (timeSinceOffDuty / (24 * 60 * 60 * 1000L)) + " days - giving fresh start");
+                data.setOffDutyTime(System.currentTimeMillis());
+                data.setEarnedOffDutyTime(earnedTime); // Keep their earned time
+                data.clearPenaltyTracking();
+                data.setHasBeenNotifiedOfExpiredTime(false);
                 plugin.getDataManager().savePlayerData(data);
+                return;
+            }
+            
+            if (!data.hasBeenNotifiedOfExpiredTime()) {
+                // First time notification
+                plugin.getMessageManager().sendMessage(player, "duty.restrictions.off-duty-time-expired");
+                plugin.getMessageManager().sendMessage(player, "duty.restrictions.must-return-to-duty");
+                data.setHasBeenNotifiedOfExpiredTime(true);
+                
+                // Start penalty tracking only if not already active
+                if (!data.isPenaltyTrackingActive()) {
+                    data.initializePenaltyTracking();
+                    // Set the penalty start time to when they actually exceeded their earned time
+                    data.setPenaltyStartTime(data.getOffDutyTime() + earnedTime);
+                    plugin.getDataManager().savePlayerData(data);
+                    logger.info(player.getName() + " has used up their earned off-duty time - penalty tracking initiated");
+                }
+            }
+            
+            // Apply escalating penalties if system is enabled
+            if (plugin.getConfigManager().isPenaltyEscalationEnabled()) {
+                // CRITICAL FIX: Calculate overrun time from when penalties should have started
+                // not from when they went off duty
+                long penaltyStartTime = data.getPenaltyStartTime();
+                long currentTime = System.currentTimeMillis();
+                long overrunTime = currentTime - penaltyStartTime;
+                
+                // Safeguard: If penalty tracking was reset but player has been off duty for too long,
+                // cap the overrun time to a reasonable maximum
+                if (penaltyStartTime == 0 || overrunTime < 0) {
+                    // Recalculate penalty start time
+                    penaltyStartTime = data.getOffDutyTime() + earnedTime;
+                    overrunTime = currentTime - penaltyStartTime;
+                    data.setPenaltyStartTime(penaltyStartTime);
+                    
+                    if (plugin.getConfigManager().isDebugMode()) {
+                        logger.info("Recalculated penalty start time for " + player.getName() + 
+                                   " to " + penaltyStartTime);
+                    }
+                }
+                
+                // Cap overrun time to prevent extreme values
+                long maxReasonableOverrun = 7 * 24 * 60 * 60 * 1000L; // 7 days in milliseconds
+                if (overrunTime > maxReasonableOverrun) {
+                    logger.warning("Capping overrun time for " + player.getName() + " from " + 
+                                 (overrunTime / (60 * 1000L)) + " minutes to " + 
+                                 (maxReasonableOverrun / (60 * 1000L)) + " minutes (7 days)");
+                    overrunTime = maxReasonableOverrun;
+                }
+                
+                // Add debugging for extreme values
+                if (overrunTime > 24 * 60 * 60 * 1000L) { // More than 24 hours
+                    logger.warning("Extreme overrun time detected for " + player.getName() + 
+                                 ": " + (overrunTime / (60 * 1000L)) + " minutes (" + 
+                                 (overrunTime / (24 * 60 * 60 * 1000L)) + " days)");
+                    logger.warning("  penaltyStartTime: " + penaltyStartTime);
+                    logger.warning("  currentTime: " + currentTime);
+                    logger.warning("  timeSinceOffDuty: " + (timeSinceOffDuty / (60 * 1000L)) + " minutes");
+                    logger.warning("  earnedTime: " + (earnedTime / (60 * 1000L)) + " minutes");
+                }
+                
+                applyEscalatingPenalties(player, data, overrunTime);
             }
         }
+    }
+    
+    /**
+     * Clear all penalties when player goes back on duty
+     */
+    private void clearOffDutyPenalties(Player player, PlayerData data) {
+        // Remove slowness effect
+        player.removePotionEffect(PotionEffectType.SLOWNESS);
+        
+        // Hide penalty boss bar
+        if (data.hasActivePenaltyBossBar()) {
+            plugin.getBossBarManager().hideBossBarByType(player, "penalty");
+            data.setHasActivePenaltyBossBar(false);
+        }
+        
+        // Clear penalty tracking completely
+        data.clearPenaltyTracking();
+        data.setHasBeenNotifiedOfExpiredTime(false);
+        
+        // Save the cleared state
+        plugin.getDataManager().savePlayerData(data);
+        
+        // Send relief message
+        plugin.getMessageManager().sendSuccess(player, "duty.penalties.cleared");
+        
+        logger.info("Cleared off-duty penalties for " + player.getName());
+    }
+    
+    /**
+     * Apply escalating penalties based on time overrun
+     */
+    private void applyEscalatingPenalties(Player player, PlayerData data, long overrunTime) {
+        long overrunMinutes = overrunTime / (60 * 1000L);
+        
+        // Get configuration values
+        int gracePeriod = plugin.getConfigManager().getPenaltyGracePeriod();
+        int stage1Time = plugin.getConfigManager().getPenaltyStage1Time();
+        int stage2Time = plugin.getConfigManager().getPenaltyStage2Time();
+        int recurringInterval = plugin.getConfigManager().getPenaltyRecurringInterval();
+        
+        // Debug logging
+        if (plugin.getConfigManager().isDebugMode()) {
+            logger.info("Penalty calculation for " + player.getName() + ":");
+            logger.info("  Overrun time: " + overrunMinutes + " minutes");
+            logger.info("  Grace period: " + gracePeriod + " minutes");
+            logger.info("  Current stage: " + data.getCurrentPenaltyStage());
+            logger.info("  Stage 1 time: " + stage1Time + " minutes");
+            logger.info("  Stage 2 time: " + stage2Time + " minutes");
+            logger.info("  Recurring interval: " + recurringInterval + " minutes");
+            logger.info("  Last penalty time: " + data.getLastPenaltyTime());
+        }
+        
+        // Skip if still in grace period
+        if (overrunMinutes < gracePeriod) {
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("  Still in grace period - no penalties applied");
+            }
+            return;
+        }
+        
+        long effectiveOverrunMinutes = overrunMinutes - gracePeriod;
+        
+        // CRITICAL FIX: Apply penalties gradually, one stage at a time
+        int currentStage = data.getCurrentPenaltyStage();
+        int nextStage = currentStage + 1;
+        
+        // Check if enough time has passed for next penalty stage
+        long timeSinceLastPenalty = System.currentTimeMillis() - data.getLastPenaltyTime();
+        long minimumIntervalMs = Math.max(recurringInterval * 60 * 1000L, 60000L); // At least 1 minute between penalties
+        
+        // Determine if we should apply the next penalty stage
+        boolean shouldApplyNextStage = false;
+        
+        if (currentStage == 0) {
+            // No penalties yet - check if we should apply stage 1
+            shouldApplyNextStage = effectiveOverrunMinutes >= stage1Time;
+        } else if (currentStage == 1) {
+            // Stage 1 applied - check if we should apply stage 2
+            shouldApplyNextStage = (effectiveOverrunMinutes >= stage2Time) && 
+                                   (timeSinceLastPenalty >= minimumIntervalMs);
+        } else if (currentStage >= 2) {
+            // Stage 2 or higher - check if we should apply recurring penalty
+            long timeForNextRecurring = stage2Time + ((currentStage - 1) * recurringInterval);
+            shouldApplyNextStage = (effectiveOverrunMinutes >= timeForNextRecurring) && 
+                                   (timeSinceLastPenalty >= minimumIntervalMs);
+        }
+        
+        if (plugin.getConfigManager().isDebugMode()) {
+            logger.info("  Effective overrun: " + effectiveOverrunMinutes + " minutes");
+            logger.info("  Current stage: " + currentStage + ", next stage: " + nextStage);
+            logger.info("  Time since last penalty: " + (timeSinceLastPenalty / 1000L) + " seconds");
+            logger.info("  Should apply next stage: " + shouldApplyNextStage);
+        }
+        
+        if (shouldApplyNextStage) {
+            // Apply the next penalty stage
+            data.setCurrentPenaltyStage(nextStage);
+            
+            // Apply appropriate penalty for the new stage
+            if (nextStage == 1) {
+                applyStage1Penalty(player, data);
+            } else if (nextStage == 2) {
+                applyStage2Penalty(player, data);
+            } else if (nextStage >= 3) {
+                applyRecurringPenalty(player, data);
+            }
+            
+            data.setLastPenaltyTime(System.currentTimeMillis());
+            plugin.getDataManager().savePlayerData(data);
+            
+            // Update boss bar only when stage changes
+            updatePenaltyBossBar(player, data, overrunMinutes);
+            data.setHasActivePenaltyBossBar(true);
+            
+            logger.info("Applied penalty stage " + nextStage + " to " + player.getName() + 
+                       " (effective overrun: " + effectiveOverrunMinutes + " minutes)");
+        } else if (plugin.getConfigManager().isDebugMode()) {
+            logger.info("  No penalty applied - conditions not met");
+        }
+    }
+    
+    /**
+     * Apply Stage 1 penalty (first warning + light slowness only)
+     */
+    private void applyStage1Penalty(Player player, PlayerData data) {
+        // Apply slowness effect
+        int slownessLevel = plugin.getConfigManager().getPenaltyStage1SlownessLevel();
+        PotionEffect slowness = new PotionEffect(
+            PotionEffectType.SLOWNESS, 
+            Integer.MAX_VALUE, // Permanent until cleared
+            slownessLevel - 1 // Bukkit uses 0-based levels
+        );
+        player.addPotionEffect(slowness);
+        data.setLastSlownessApplication(System.currentTimeMillis());
+        
+        // Send warning message
+        if (plugin.getConfigManager().isPenaltyStage1WarningEnabled()) {
+            plugin.getMessageManager().sendWarning(player, "duty.penalties.stage1-applied", 
+                MessageManager.numberPlaceholder("slowness_level", slownessLevel)
+            );
+        }
+        
+        logger.info("Applied Stage 1 off-duty penalty to " + player.getName() + 
+                   " (Slowness " + slownessLevel + ")");
+    }
+    
+    /**
+     * Apply Stage 2 penalty (stronger slowness only)
+     */
+    private void applyStage2Penalty(Player player, PlayerData data) {
+        // Upgrade slowness effect
+        int slownessLevel = plugin.getConfigManager().getPenaltyStage2SlownessLevel();
+        PotionEffect slowness = new PotionEffect(
+            PotionEffectType.SLOWNESS, 
+            Integer.MAX_VALUE,
+            slownessLevel - 1
+        );
+        player.addPotionEffect(slowness);
+        data.setLastSlownessApplication(System.currentTimeMillis());
+        
+        // Send warning message
+        if (plugin.getConfigManager().isPenaltyStage2WarningEnabled()) {
+            plugin.getMessageManager().sendWarning(player, "duty.penalties.stage2-applied",
+                MessageManager.numberPlaceholder("slowness_level", slownessLevel)
+            );
+        }
+        
+        logger.info("Applied Stage 2 off-duty penalty to " + player.getName() + 
+                   " (Slowness " + slownessLevel + ")");
+    }
+    
+    /**
+     * Apply recurring penalty (every interval after stage 2 - slowness + economy penalty)
+     */
+    private void applyRecurringPenalty(Player player, PlayerData data) {
+        // Maintain current slowness level
+        int slownessLevel = plugin.getConfigManager().getPenaltyRecurringSlownessLevel();
+        PotionEffect slowness = new PotionEffect(
+            PotionEffectType.SLOWNESS, 
+            Integer.MAX_VALUE,
+            slownessLevel - 1
+        );
+        player.addPotionEffect(slowness);
+        data.setLastSlownessApplication(System.currentTimeMillis());
+        
+        // Apply economy penalty
+        int economyPenalty = plugin.getConfigManager().getPenaltyRecurringEconomyPenalty();
+        applyEconomyPenalty(player, economyPenalty, "recurring off-duty violation");
+        
+        // Send warning message
+        if (plugin.getConfigManager().isPenaltyRecurringWarningEnabled()) {
+            plugin.getMessageManager().sendWarning(player, "duty.penalties.recurring-applied",
+                MessageManager.numberPlaceholder("penalty", economyPenalty),
+                MessageManager.numberPlaceholder("stage", data.getCurrentPenaltyStage())
+            );
+        }
+        
+        logger.info("Applied recurring off-duty penalty to " + player.getName() + 
+                   " (Stage " + data.getCurrentPenaltyStage() + ", $" + economyPenalty + " deducted)");
+    }
+    
+    /**
+     * Apply economy penalty using Vault economy system
+     */
+    private void applyEconomyPenalty(Player player, int amount, String reason) {
+        // Use Vault economy system for penalties
+        plugin.getVaultEconomyManager().takeMoney(player, amount, reason)
+            .thenAccept(success -> {
+                if (success) {
+                    logger.info("Successfully deducted $" + amount + " from " + 
+                               player.getName() + " (Reason: " + reason + ")");
+                } else {
+                    logger.warning("Failed to deduct money from " + player.getName() + 
+                                 " - Vault economy operation failed or insufficient funds");
+                }
+            })
+            .exceptionally(throwable -> {
+                logger.severe("Error executing economy penalty for " + player.getName() + ": " + throwable.getMessage());
+                return null;
+            });
+    }
+    
+    /**
+     * Update or show penalty boss bar using existing BossBarManager
+     */
+    private void updatePenaltyBossBar(Player player, PlayerData data, long overrunMinutes) {
+        if (!plugin.getConfigManager().isPenaltyBossBarEnabled()) {
+            return;
+        }
+        
+        // Use the new penalty boss bar method
+        plugin.getBossBarManager().showPenaltyBossBar(player, data.getCurrentPenaltyStage(), overrunMinutes);
+        data.setHasActivePenaltyBossBar(true);
     }
 
     // === ENHANCED DUTY MANAGEMENT ===
@@ -156,14 +462,17 @@ public class DutyManager {
         
         if (plugin.getConfigManager().isDebugMode()) {
             logger.info("DEBUG: " + player.getName() + " attempting to go on duty");
-        }
         
-        // Check if already on duty
+        
+        }        
         if (data.isOnDuty()) {
             plugin.getMessageManager().sendMessage(player, "duty.activation.already-on");
             return false;
         }
         
+        
+
+
         // STRICT GUARD RANK VALIDATION - Even OPs must have proper LuckPerms rank
         String guardRank = getPlayerGuardRank(player);
         if (guardRank == null) {
@@ -182,7 +491,7 @@ public class DutyManager {
         }
         
         // Check if player can go on duty (time restriction)
-        if (!canGoOnDuty(data)) {
+        if (!canGoOnDuty(data, player)) {
             long remainingTime = getRemainingOffDutyTime(data);
             plugin.getMessageManager().sendMessage(player, "duty.restrictions.insufficient-time",
                 timePlaceholder("time", remainingTime));
@@ -217,6 +526,7 @@ public class DutyManager {
         // Start immobilization countdown
         return startDutyTransition(player, guardRank);
     }
+
     
     // Debug helper method
     private void debugPlayerGroups(Player player) {
@@ -261,14 +571,7 @@ public class DutyManager {
         }
         
         // Show countdown boss bar
-        plugin.getMessageManager().showCountdownBossBar(
-            player,
-            "bossbar.duty-transition",
-            BossBar.Color.GREEN,
-            BossBar.Overlay.PROGRESS,
-            immobilizationTime,
-            stringPlaceholder("rank", guardRank)
-        );
+        plugin.getBossBarManager().showDutyBossBar(player, immobilizationTime, guardRank);
         
         // Start immobilization task
         BukkitTask task = new BukkitRunnable() {
@@ -330,7 +633,7 @@ public class DutyManager {
         transitionLocations.remove(playerId);
         
         // Hide boss bar
-        plugin.getMessageManager().hideBossBar(player);
+        plugin.getBossBarManager().hideBossBarByType(player, "duty");
         
         // Send cancellation message if reason provided
         if (reason != null) {
@@ -351,11 +654,14 @@ public class DutyManager {
             return;
         }
         
-        // NEW: Store player's current inventory before giving guard kit
+        // Store player's current inventory before clearing it
         if (!storePlayerInventory(player)) {
             plugin.getMessageManager().sendMessage(player, "universal.failed");
             return;
         }
+        
+        // Clear player's inventory to prevent mixing with guard kit
+        player.getInventory().clear();
         
         // Set on duty
         data.setOnDuty(true);
@@ -369,13 +675,16 @@ public class DutyManager {
         plugin.getDataManager().savePlayerData(data);
         
         // Hide boss bar
-        plugin.getMessageManager().hideBossBar(player);
+        plugin.getBossBarManager().hideBossBarByType(player, "duty");
         
         // Send success message
         plugin.getMessageManager().sendMessage(player, "duty.activation.success");
         
         // Give appropriate kit
         giveGuardKit(player, guardRank);
+        
+        // Add guard tag
+        plugin.getGuardTagManager().addGuardTag(player, data);
         
         // Send action bar confirmation
         plugin.getMessageManager().sendActionBar(player, "actionbar.duty-activated");
@@ -386,19 +695,54 @@ public class DutyManager {
     private void giveGuardKit(Player player, String guardRank) {
         String kitName = plugin.getConfigManager().getKitForRank(guardRank);
         
+        if (kitName == null || kitName.trim().isEmpty()) {
+            logger.warning("No kit configured for rank: " + guardRank);
+            return;
+        }
+        
         try {
-            // Execute CMI kit command
+            // Use CMI integration instead of console commands
+            plugin.getCMIIntegration().giveKit(player, kitName)
+                .thenAccept(success -> {
+                    if (success) {
+                        plugin.getMessageManager().sendMessage(player, "duty.activation.kit-given", 
+                            MessageManager.stringPlaceholder("kit", kitName));
+                        
+                        if (plugin.getConfigManager().isDebugMode()) {
+                            logger.info("DEBUG: Successfully gave kit " + kitName + " to " + player.getName() + " via CMI integration");
+                        }
+                    } else {
+                        logger.warning("CMI integration failed for kit " + kitName + " - falling back to console command");
+                        
+                        // Fallback to console command if CMI integration fails
+                        try {
             String command = "cmi kit " + kitName + " " + player.getName();
             Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
             
-            plugin.getMessageManager().sendMessage(player, "duty.activation.kit-given", 
-                stringPlaceholder("kit", kitName));
+                            plugin.getMessageManager().sendMessage(player, "duty.activation.kit-given-fallback", 
+                                MessageManager.stringPlaceholder("kit", kitName));
             
             if (plugin.getConfigManager().isDebugMode()) {
-                logger.info("DEBUG: Gave kit " + kitName + " to " + player.getName());
-            }
+                                logger.info("DEBUG: Gave kit " + kitName + " to " + player.getName() + " via fallback console command");
+                            }
+                        } catch (Exception fallbackError) {
+                            logger.severe("Both CMI integration and fallback failed for kit " + kitName + ": " + fallbackError.getMessage());
+                            plugin.getMessageManager().sendMessage(player, "duty.activation.kit-failed", 
+                                MessageManager.stringPlaceholder("kit", kitName));
+                        }
+                    }
+                })
+                .exceptionally(throwable -> {
+                    logger.severe("CMI kit integration error for " + kitName + ": " + throwable.getMessage());
+                    plugin.getMessageManager().sendMessage(player, "duty.activation.kit-failed", 
+                        MessageManager.stringPlaceholder("kit", kitName));
+                    return null;
+                });
+                
         } catch (Exception e) {
-            logger.warning("Failed to give kit " + kitName + " to " + player.getName() + ": " + e.getMessage());
+            logger.warning("Failed to initiate kit giving for " + kitName + " to " + player.getName() + ": " + e.getMessage());
+            plugin.getMessageManager().sendMessage(player, "duty.activation.kit-failed", 
+                MessageManager.stringPlaceholder("kit", kitName));
         }
     }
     
@@ -444,7 +788,7 @@ public class DutyManager {
         data.setHasBeenNotifiedOfExpiredTime(false);
         
         // NEW: Restore player's original inventory
-        restorePlayerInventory(player);
+        boolean inventoryRestored = restorePlayerInventory(player);
         
         // Save data
         plugin.getDataManager().savePlayerData(data);
@@ -453,6 +797,21 @@ public class DutyManager {
         long availableMinutes = data.getAvailableOffDutyTimeInMinutes();
         plugin.getMessageManager().sendMessage(player, "duty.deactivation.success-with-time",
             timePlaceholder("time", availableMinutes * 60L));
+        
+        // Provide feedback about inventory restoration
+        if (inventoryRestored) {
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: Successfully restored original inventory for " + player.getName() + " when going off duty");
+            }
+        } else {
+            // This could happen if they were on duty before a server restart or if there was no stored inventory
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: No stored inventory found for " + player.getName() + " when going off duty");
+            }
+        }
+        
+        // Remove guard tag
+        plugin.getGuardTagManager().removeGuardTag(player);
         
         // Send action bar confirmation
         plugin.getMessageManager().sendActionBar(player, "actionbar.duty-deactivated");
@@ -478,6 +837,9 @@ public class DutyManager {
         data.setHasEarnedBaseTime(true);
         
         plugin.getDataManager().savePlayerData(data);
+        
+        // Update guard tag to reflect new earned time
+        plugin.getGuardTagManager().updateGuardTag(player, data);
         
         plugin.getMessageManager().sendMessage(player, "duty.earning.base-time-earned",
             timePlaceholder("time", baseTimeMinutes * 60L));
@@ -514,6 +876,9 @@ public class DutyManager {
         long bonusMillis = bonusMinutes * 60L * 1000L;
         
         awardPerformanceBonus(player, data, bonusMillis, "continuous duty");
+        
+        // Update guard tag to reflect new earned time
+        plugin.getGuardTagManager().updateGuardTag(player, data);
     }
     
     /**
@@ -522,6 +887,9 @@ public class DutyManager {
     private void awardPerformanceBonus(Player player, PlayerData data, long bonusMillis, String reason) {
         data.addEarnedOffDutyTime(bonusMillis);
         plugin.getDataManager().savePlayerData(data);
+        
+        // Update guard tag to reflect new earned time
+        plugin.getGuardTagManager().updateGuardTag(player, data);
         
         long bonusSeconds = bonusMillis / 1000L;
         plugin.getMessageManager().sendMessage(player, "duty.earning.performance-bonus",
@@ -554,6 +922,11 @@ public class DutyManager {
      * @return true if successful, false otherwise
      */
     private boolean storePlayerInventory(Player player) {
+        if (player == null || !player.isOnline()) {
+            logger.warning("Cannot store inventory for null or offline player");
+            return false;
+        }
+        
         try {
             // Serialize player's inventory
             String inventoryData = InventorySerializer.serializePlayerInventory(player);
@@ -576,6 +949,7 @@ public class DutyManager {
             return true;
         } catch (Exception e) {
             logger.severe("Failed to store inventory for " + player.getName() + ": " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -586,6 +960,11 @@ public class DutyManager {
      * @return true if successful, false otherwise
      */
     private boolean restorePlayerInventory(Player player) {
+        if (player == null || !player.isOnline()) {
+            logger.warning("Cannot restore inventory for null or offline player");
+            return false;
+        }
+        
         try {
             UUID playerId = player.getUniqueId();
             String inventoryData = null;
@@ -622,6 +1001,7 @@ public class DutyManager {
             return success;
         } catch (Exception e) {
             logger.severe("Failed to restore inventory for " + player.getName() + ": " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
@@ -640,6 +1020,100 @@ public class DutyManager {
         // Check if player is in any duty-required zones (these are also valid for going off duty)
         String[] dutyRequiredZones = plugin.getConfigManager().getDutyRequiredZones();
         return plugin.getWorldGuardUtils().isPlayerInAnyRegion(player, dutyRequiredZones);
+    }
+    
+    /**
+     * Clean up old stored inventory data to prevent database bloat
+     * This should be called periodically (e.g., daily)
+     */
+    public void cleanupOldStoredInventories() {
+        try {
+            // Clean up stored inventories older than 7 days for players who are no longer on duty
+            long cutoffTime = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L); // 7 days
+            
+            // Get all stored inventory entries
+            List<UUID> storedInventoryPlayers = plugin.getDataManager().getPlayersWithStoredInventory();
+            
+            int cleanedCount = 0;
+            for (UUID playerId : storedInventoryPlayers) {
+                PlayerData data = plugin.getDataManager().getPlayerData(playerId);
+                
+                // Clean up if player is not on duty and inventory is old
+                if (data != null && !data.isOnDuty()) {
+                    String inventoryData = plugin.getDataManager().loadPlayerInventory(playerId);
+                    if (inventoryData != null) {
+                        // Check if inventory data contains timestamp
+                        try {
+                            JsonObject inventoryObj = JsonParser.parseString(inventoryData).getAsJsonObject();
+                            if (inventoryObj.has("metadata")) {
+                                JsonObject metadata = inventoryObj.getAsJsonObject("metadata");
+                                if (metadata.has("timestamp")) {
+                                    long timestamp = metadata.get("timestamp").getAsLong();
+                                    if (timestamp < cutoffTime) {
+                                        plugin.getDataManager().deletePlayerInventory(playerId);
+                                        cleanedCount++;
+                                        
+                                        if (plugin.getConfigManager().isDebugMode()) {
+                                            logger.info("DEBUG: Cleaned up old stored inventory for " + playerId);
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                            // If we can't parse the data, it's corrupted - clean it up
+                            plugin.getDataManager().deletePlayerInventory(playerId);
+                            cleanedCount++;
+                        }
+                    }
+                }
+            }
+            
+            if (cleanedCount > 0) {
+                logger.info("Cleaned up " + cleanedCount + " old stored inventories");
+            }
+            
+        } catch (Exception e) {
+            logger.severe("Failed to cleanup old stored inventories: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Check if player has stored inventory that needs to be restored when going off duty
+     * @param player the player to check
+     * @return true if they have stored inventory, false otherwise
+     */
+    public boolean hasStoredInventoryForRestoration(Player player) {
+        if (player == null) {
+            return false;
+        }
+        
+        UUID playerId = player.getUniqueId();
+        
+        // Check memory cache first
+        if (inventoryCache.containsKey(playerId)) {
+            return true;
+        }
+        
+        // Check database
+        return plugin.getDataManager().hasStoredInventory(playerId);
+    }
+    
+    /**
+     * Public method to restore player inventory (for use by event handlers)
+     * @param player the player to restore inventory for
+     * @return true if successful, false otherwise
+     */
+    public boolean restorePlayerInventoryPublic(Player player) {
+        return restorePlayerInventory(player);
+    }
+    
+    /**
+     * Public method to give guard kit to a player (for use by event handlers)
+     * @param player the player to give kit to
+     * @param guardRank the guard rank to give kit for
+     */
+    public void giveGuardKitPublic(Player player, String guardRank) {
+        giveGuardKit(player, guardRank);
     }
     
     /**
@@ -762,6 +1236,28 @@ public class DutyManager {
         return offDutyTime >= requiredOffDutyTime;
     }
     
+    /**
+     * Check if a player can go on duty, with optional bypass for admins
+     */
+    public boolean canGoOnDuty(PlayerData data, Player player) {
+        if (data.isOnDuty()) return false;
+        
+        // Allow new players or those who haven't gone off duty yet to go on duty immediately
+        if (data.getOffDutyTime() == 0) {
+            return true;
+        }
+        
+        // Check if player has bypass permission
+        if (player.hasPermission("edencorrections.admin.bypass.cooldown")) {
+            return true;
+        }
+        
+        long offDutyTime = System.currentTimeMillis() - data.getOffDutyTime();
+        long requiredOffDutyTime = getRequiredOffDutyTime();
+        
+        return offDutyTime >= requiredOffDutyTime;
+    }
+    
     public long getRemainingOffDutyTime(PlayerData data) {
         if (data.getOffDutyTime() == 0) return 0;
         
@@ -792,7 +1288,7 @@ public class DutyManager {
     }
     
     public long getRequiredOffDutyTime() {
-        return plugin.getConfigManager().getDutyTransitionTime() * 1000L;
+        return plugin.getConfigManager().getBaseDutyRequirement() * 60L * 1000L; // Convert minutes to milliseconds
     }
     
     public long getMaxOffDutyTime() {
@@ -816,6 +1312,9 @@ public class DutyManager {
             data.incrementSessionSearches();
             plugin.getDataManager().savePlayerData(data);
             
+            // Update guard tag to reflect new stats
+            plugin.getGuardTagManager().updateGuardTag(guard, data);
+            
             if (plugin.getConfigManager().isDebugMode()) {
                 logger.info("DEBUG: " + guard.getName() + " performed search (total: " + data.getSessionSearches() + ")");
             }
@@ -836,6 +1335,9 @@ public class DutyManager {
             int bonusMinutes = plugin.getConfigManager().getSuccessfulSearchBonus();
             long bonusMillis = bonusMinutes * 60L * 1000L;
             awardPerformanceBonus(guard, data, bonusMillis, "successful search");
+            
+            // Update guard tag to reflect new stats
+            plugin.getGuardTagManager().updateGuardTag(guard, data);
             
             if (plugin.getConfigManager().isDebugMode()) {
                 logger.info("DEBUG: " + guard.getName() + " successful search (total: " + data.getSessionSuccessfulSearches() + ")");
@@ -858,6 +1360,9 @@ public class DutyManager {
             long bonusMillis = bonusMinutes * 60L * 1000L;
             awardPerformanceBonus(guard, data, bonusMillis, "successful arrest");
             
+            // Update guard tag to reflect new stats
+            plugin.getGuardTagManager().updateGuardTag(guard, data);
+            
             if (plugin.getConfigManager().isDebugMode()) {
                 logger.info("DEBUG: " + guard.getName() + " successful arrest (total: " + data.getSessionArrests() + ")");
             }
@@ -874,6 +1379,9 @@ public class DutyManager {
         if (data != null) {
             data.incrementSessionKills();
             plugin.getDataManager().savePlayerData(data);
+            
+            // Update guard tag to reflect new stats
+            plugin.getGuardTagManager().updateGuardTag(guard, data);
             
             if (plugin.getConfigManager().isDebugMode()) {
                 logger.info("DEBUG: " + guard.getName() + " killed " + victim.getName() + " (total: " + data.getSessionKills() + ")");
@@ -896,6 +1404,9 @@ public class DutyManager {
             long bonusMillis = bonusMinutes * 60L * 1000L;
             awardPerformanceBonus(guard, data, bonusMillis, "successful detection");
             
+            // Update guard tag to reflect new stats
+            plugin.getGuardTagManager().updateGuardTag(guard, data);
+            
             if (plugin.getConfigManager().isDebugMode()) {
                 logger.info("DEBUG: " + guard.getName() + " successful detection (total: " + data.getSessionDetections() + ")");
             }
@@ -915,7 +1426,7 @@ public class DutyManager {
             // Clean up UI for player
             Player player = Bukkit.getPlayer(entry.getKey());
             if (player != null) {
-                plugin.getMessageManager().hideBossBar(player);
+                plugin.getBossBarManager().hideBossBarByType(player, "duty");
             }
         }
         
@@ -927,6 +1438,9 @@ public class DutyManager {
             }
         }
         
+        // Clean up all guard tags
+        plugin.getGuardTagManager().cleanupAllGuardTags();
+        
         dutyTransitions.clear();
         transitionLocations.clear();
         inventoryCache.clear();
@@ -936,16 +1450,23 @@ public class DutyManager {
         // Cancel any active duty transition
         cancelDutyTransition(player, null);
         
-        // Clean up inventory cache
-        UUID playerId = player.getUniqueId();
-        if (inventoryCache.containsKey(playerId)) {
-            // Try to restore inventory if player is going off duty
-            if (isOnDuty(player)) {
-                restorePlayerInventory(player);
-            } else {
+        // Remove guard tag if player is on duty
+        if (isOnDuty(player)) {
+            plugin.getGuardTagManager().removeGuardTag(player);
+            // Do NOT restore inventory if on duty (preserve guard kit)
+            // Do NOT delete stored inventory - keep it for when they go off duty later
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: Preserved stored inventory for " + player.getName() + " (logged off while on duty)");
+            }
+        } else {
+            // Clean up inventory cache for off-duty players
+            UUID playerId = player.getUniqueId();
+            if (inventoryCache.containsKey(playerId)) {
                 // Just remove from cache
                 inventoryCache.remove(playerId);
                 plugin.getDataManager().deletePlayerInventory(playerId);
+                // Restore inventory if off duty
+                restorePlayerInventory(player);
             }
         }
     }

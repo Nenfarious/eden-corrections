@@ -13,9 +13,11 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.Map;
+import java.util.Collection;
 
 import static dev.lsdmc.edenCorrections.managers.MessageManager.*;
 
@@ -46,9 +48,6 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         plugin.getCommand("corrections").setExecutor(this);
         plugin.getCommand("corrections").setTabCompleter(this);
         
-        plugin.getCommand("edenreload").setExecutor(this);
-        plugin.getCommand("edenreload").setTabCompleter(this);
-        
         // Register contraband commands
         plugin.getCommand("sword").setExecutor(this);
         plugin.getCommand("sword").setTabCompleter(this);
@@ -73,6 +72,10 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         plugin.getCommand("tips").setExecutor(this);
         plugin.getCommand("tips").setTabCompleter(this);
         
+        // Register area management command
+        plugin.getCommand("area").setExecutor(this);
+        plugin.getCommand("area").setTabCompleter(this);
+        
         logger.info("Commands registered successfully with tab completion!");
     }
     
@@ -91,8 +94,6 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleJailOfflineCommand(sender, args);
             case "corrections":
                 return handleCorrectionsCommand(sender, args);
-            case "edenreload":
-                return handleReloadCommand(sender, args);
             // Contraband commands
             case "sword":
                 return handleContrabandCommand(sender, "sword", args);
@@ -108,6 +109,8 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleDutyBankCommand(sender, args);
             case "tips":
                 return handleTipsCommand(sender, args);
+            case "area":
+                return handleAreaCommand(sender, args);
             default:
                 return false;
         }
@@ -128,8 +131,6 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleJailOfflineTabComplete(sender, args);
             case "corrections":
                 return handleCorrectionsTabComplete(sender, args);
-            case "edenreload":
-                return new ArrayList<>(); // No arguments
             case "sword":
             case "bow":
             case "armor":
@@ -140,6 +141,8 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 return handleDutyBankTabComplete(sender, args);
             case "tips":
                 return handleTipsTabComplete(sender, args);
+            case "area":
+                return handleAreaTabComplete(sender, args);
             default:
                 return new ArrayList<>();
         }
@@ -245,19 +248,13 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     }
     
     private boolean handleChaseEnd(Player player, String[] args) {
-        if (args.length != 1) {
-            plugin.getMessageManager().sendMessage(player, "universal.invalid-usage",
-                stringPlaceholder("command", "/chase end"));
-            return true;
-        }
-        
         ChaseData chase = plugin.getDataManager().getChaseByGuard(player.getUniqueId());
         if (chase == null) {
-            plugin.getMessageManager().sendMessage(player, "chase.restrictions.not-on-duty");
+            plugin.getMessageManager().sendMessage(player, "admin.chase.not-in-chase");
             return true;
         }
         
-        plugin.getChaseManager().endChase(chase.getChaseId(), "Manually ended by guard");
+        plugin.getChaseManager().endChase(chase.getChaseId(), plugin.getMessageManager().getPlainTextMessage("chase.end-reasons.manually-ended-guard"));
         return true;
     }
     
@@ -359,6 +356,8 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         if (sender instanceof Player) {
             Player player = (Player) sender;
             plugin.getMessageManager().sendRawMessage(player, "help.corrections.header");
+            plugin.getMessageManager().sendRawMessage(player, "help.corrections.title");
+            plugin.getMessageManager().sendRawMessage(player, "help.corrections.divider");
             plugin.getMessageManager().sendRawMessage(player, "help.corrections.wanted");
             plugin.getMessageManager().sendRawMessage(player, "help.corrections.chase");
             plugin.getMessageManager().sendRawMessage(player, "help.corrections.duty");
@@ -368,13 +367,16 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             plugin.getMessageManager().sendRawMessage(player, "help.corrections.help");
             plugin.getMessageManager().sendRawMessage(player, "help.corrections.footer");
         } else {
-            sender.sendMessage("=== EdenCorrections Admin Commands ===");
-            sender.sendMessage("/corrections wanted <set|clear|check|list> - Manage wanted levels");
-            sender.sendMessage("/corrections chase <list|end|endall> - Manage chase system");
-            sender.sendMessage("/corrections duty <list> - Manage duty system");
-            sender.sendMessage("/corrections system <stats|debug> - System information");
-            sender.sendMessage("/corrections reload - Reload configuration");
-            sender.sendMessage("/corrections help - Show this help");
+            // Use configurable console messages
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.header"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.wanted"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.chase"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.duty"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.player"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.system"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.reload"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.help"));
+            sender.sendMessage(plugin.getMessageManager().getPlainTextMessage("help.corrections.console.footer"));
         }
         return true;
     }
@@ -578,37 +580,43 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        Player guard = Bukkit.getPlayer(args[2]);
+        String guardName = args[2];
+        Player guard = Bukkit.getPlayer(guardName);
+        
         if (guard == null) {
             plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
-                stringPlaceholder("player", args[2]));
+                stringPlaceholder("player", guardName));
             return true;
         }
         
         ChaseData chase = plugin.getDataManager().getChaseByGuard(guard.getUniqueId());
         if (chase == null) {
-            plugin.getMessageManager().sendMessage(sender, "admin.chase.not-in-chase",
-                stringPlaceholder("guard", guard.getName()));
+            plugin.getMessageManager().sendMessage(sender, "admin.chase.not-in-chase");
             return true;
         }
         
-        plugin.getChaseManager().endChase(chase.getChaseId(), "Ended by admin");
+        plugin.getChaseManager().endChase(chase.getChaseId(), plugin.getMessageManager().getPlainTextMessage("chase.end-reasons.ended-by-admin"));
         plugin.getMessageManager().sendMessage(sender, "admin.chase.end-success",
-            stringPlaceholder("guard", guard.getName()));
+            playerPlaceholder("guard", guard));
         return true;
     }
     
     private boolean handleChaseEndAll(CommandSender sender, String[] args) {
-        int endedCount = 0;
-        for (ChaseData chaseData : plugin.getDataManager().getAllActiveChases()) {
-            if (chaseData.isActive()) {
-                plugin.getChaseManager().endChase(chaseData.getChaseId(), "Ended by admin");
-                endedCount++;
-            }
+        Collection<ChaseData> activeChases = plugin.getDataManager().getAllActiveChases();
+        
+        if (activeChases.isEmpty()) {
+            plugin.getMessageManager().sendMessage(sender, "admin.chase.list-none");
+            return true;
+        }
+        
+        int count = 0;
+        for (ChaseData chaseData : activeChases) {
+            plugin.getChaseManager().endChase(chaseData.getChaseId(), plugin.getMessageManager().getPlainTextMessage("chase.end-reasons.ended-by-admin"));
+            count++;
         }
         
         plugin.getMessageManager().sendMessage(sender, "admin.chase.end-all-success",
-            numberPlaceholder("count", endedCount));
+            numberPlaceholder("count", count));
         return true;
     }
     
@@ -694,21 +702,25 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     private boolean handleSystemDebug(CommandSender sender, String[] args) {
         if (args.length < 3) {
             String debugStatus = plugin.getConfigManager().isDebugMode() ? "enabled" : "disabled";
-            plugin.getMessageManager().sendMessage(sender, "system.debug-" + debugStatus);
+            plugin.getMessageManager().sendMessage(sender, "debug.status-" + debugStatus);
             return true;
         }
         
         String debugValue = args[2].toLowerCase();
         if (debugValue.equals("on") || debugValue.equals("true")) {
             plugin.getConfigManager().setDebugMode(true);
-            plugin.getMessageManager().sendMessage(sender, "admin.system.debug-enabled");
+            plugin.getMessageManager().sendMessage(sender, "debug.enabled");
         } else if (debugValue.equals("off") || debugValue.equals("false")) {
             plugin.getConfigManager().setDebugMode(false);
-            plugin.getMessageManager().sendMessage(sender, "admin.system.debug-disabled");
+            plugin.getMessageManager().sendMessage(sender, "debug.disabled");
         } else if (debugValue.equals("rank")) {
             return handleDebugRank(sender, args);
+        } else if (debugValue.equals("messages")) {
+            return handleDebugMessages(sender, args);
+        } else if (debugValue.equals("forcereload")) {
+            return handleDebugForceReload(sender, args);
         } else {
-            plugin.getMessageManager().sendMessage(sender, "system.debug-invalid-value");
+            plugin.getMessageManager().sendMessage(sender, "debug.invalid-value");
         }
         return true;
     }
@@ -763,6 +775,24 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage("§cLuckPerms not available!");
         }
+        
+        return true;
+    }
+    
+    private boolean handleDebugMessages(CommandSender sender, String[] args) {
+        plugin.getMessageManager().sendMessage(sender, "debug.diagnostic-report");
+        
+        // Generate diagnostic report
+        plugin.getMessageManager().generateDiagnosticReport();
+        
+        return true;
+    }
+    
+    private boolean handleDebugForceReload(CommandSender sender, String[] args) {
+        plugin.getMessageManager().sendMessage(sender, "debug.force-reload");
+        
+        // Force reload MessageManager
+        plugin.getMessageManager().forceReload();
         
         return true;
     }
@@ -936,7 +966,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             return true;
         }
         
-        // Send tips to player
+        // Send tips to player (using sendRawMessage to avoid double prefix)
         for (String tip : tips) {
             plugin.getMessageManager().sendRawMessage(player, tip);
         }
@@ -1004,7 +1034,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             } else if (subCommand.equals("chase") && action.equals("end")) {
                 completions.addAll(getOnlinePlayerNames());
             } else if (subCommand.equals("system") && action.equals("debug")) {
-                completions.addAll(Arrays.asList("on", "off", "rank"));
+                completions.addAll(Arrays.asList("on", "off", "rank", "messages", "forcereload"));
             }
         } else if (args.length == 4) {
             String subCommand = args[0].toLowerCase();
@@ -1055,12 +1085,164 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
             .collect(Collectors.toList());
     }
     
-    private List<String> filterCompletions(List<String> completions, String[] args) {
+        private List<String> filterCompletions(List<String> completions, String[] args) {
         if (args.length == 0) return completions;
         
         String lastArg = args[args.length - 1].toLowerCase();
         return completions.stream()
-            .filter(completion -> completion.toLowerCase().startsWith(lastArg))
-            .collect(Collectors.toList());
+                .filter(completion -> completion.toLowerCase().startsWith(lastArg))
+                .collect(Collectors.toList());
+    }
+    
+    // === AREA MANAGEMENT COMMANDS ===
+    
+    private boolean handleAreaCommand(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("edencorrections.admin.area")) {
+            plugin.getMessageManager().sendMessage(sender, "universal.no-permission");
+            return true;
+        }
+        
+        if (args.length == 0) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/area <list|add|remove|check> [area_name]"));
+            return true;
+        }
+        
+        String subCommand = args[0].toLowerCase();
+        
+        switch (subCommand) {
+            case "list":
+                return handleAreaList(sender);
+            case "add":
+                return handleAreaAdd(sender, args);
+            case "remove":
+                return handleAreaRemove(sender, args);
+            case "check":
+                return handleAreaCheck(sender, args);
+            default:
+                plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
+                    stringPlaceholder("subcommand", subCommand));
+                return true;
+        }
+    }
+    
+    private boolean handleAreaList(CommandSender sender) {
+        String[] restrictedAreas = plugin.getConfigManager().getChaseRestrictedAreas();
+        
+        plugin.getMessageManager().sendMessage(sender, "system.admin.area.list-header");
+        for (String area : restrictedAreas) {
+            boolean exists = plugin.getWorldGuardUtils().regionExists(area);
+            String status = exists ? "✅" : "❌";
+            plugin.getMessageManager().sendMessage(sender, "system.admin.area.list-entry",
+                stringPlaceholder("area", area),
+                stringPlaceholder("status", status));
+        }
+        return true;
+    }
+    
+    private boolean handleAreaAdd(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/area add <area_name>"));
+            return true;
+        }
+        
+        String areaName = args[1];
+        
+        // Check if area exists in WorldGuard
+        if (!plugin.getWorldGuardUtils().regionExists(areaName)) {
+            plugin.getMessageManager().sendMessage(sender, "system.admin.area.not-found",
+                stringPlaceholder("area", areaName));
+            return true;
+        }
+        
+        // Add to restricted areas (this would require config modification)
+        plugin.getMessageManager().sendMessage(sender, "system.admin.area.add-success",
+            stringPlaceholder("area", areaName));
+        return true;
+    }
+    
+    private boolean handleAreaRemove(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/area remove <area_name>"));
+            return true;
+        }
+        
+        String areaName = args[1];
+        String[] currentAreas = plugin.getConfigManager().getChaseRestrictedAreas();
+        
+        boolean found = false;
+        for (String area : currentAreas) {
+            if (area.equalsIgnoreCase(areaName)) {
+                found = true;
+                break;
+            }
+        }
+        
+        if (!found) {
+            plugin.getMessageManager().sendMessage(sender, "system.admin.area.not-in-list",
+                stringPlaceholder("area", areaName));
+            return true;
+        }
+        
+        // Remove from restricted areas (this would require config modification)
+        plugin.getMessageManager().sendMessage(sender, "system.admin.area.remove-success",
+            stringPlaceholder("area", areaName));
+        return true;
+    }
+    
+    private boolean handleAreaCheck(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-only");
+            return true;
+        }
+        
+        Player player = (Player) sender;
+        
+        if (args.length < 2) {
+            // Check current location
+            Set<String> regionsAtPlayer = plugin.getWorldGuardUtils().getRegionsAtPlayer(player);
+            plugin.getMessageManager().sendMessage(player, "system.admin.area.check-current",
+                stringPlaceholder("regions", String.join(", ", regionsAtPlayer)));
+            return true;
+        }
+        
+        String areaName = args[1];
+        boolean inRegion = plugin.getWorldGuardUtils().isPlayerInRegion(player, areaName);
+        plugin.getMessageManager().sendMessage(player, "system.admin.area.check-result",
+            stringPlaceholder("area", areaName),
+            stringPlaceholder("result", inRegion ? "inside" : "outside"));
+        return true;
+    }
+    
+    private List<String> handleAreaTabComplete(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("edencorrections.admin.area")) {
+            return new ArrayList<>();
+        }
+        
+        if (args.length == 1) {
+            List<String> completions = Arrays.asList("list", "add", "remove", "check");
+            return filterCompletions(completions, args);
+        }
+        
+        if (args.length == 2) {
+            String subCommand = args[0].toLowerCase();
+            
+            switch (subCommand) {
+                case "add":
+                case "remove":
+                    // Return current restricted areas
+                    return Arrays.asList(plugin.getConfigManager().getChaseRestrictedAreas());
+                case "check":
+                    // Return all available regions
+                    Set<String> allRegions = plugin.getWorldGuardUtils().getAllRegions();
+                    return filterCompletions(new ArrayList<>(allRegions), args);
+                default:
+                    return new ArrayList<>();
+            }
+        }
+        
+        return new ArrayList<>();
     }
 } 

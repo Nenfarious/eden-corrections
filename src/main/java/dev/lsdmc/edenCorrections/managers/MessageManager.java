@@ -122,24 +122,64 @@ public class MessageManager {
         logger.info("MessageManager reloaded successfully!");
     }
     
+    public void forceReload() {
+        logger.info("Force reloading MessageManager...");
+        
+        // Clear caches
+        messageCache.clear();
+        messageUsageCount.clear();
+        missingMessages.clear();
+        invalidMessages.clear();
+        
+        // Force reload config
+        plugin.reloadConfig();
+        
+        // Reload messages
+        loadMessages();
+        validateMessages();
+        
+        logger.info("MessageManager force reloaded successfully!");
+    }
+    
     private void loadMessages() {
         try {
+            logger.info("MessageManager: Starting to load messages...");
+            
             // Load prefix from top-level config first
             String prefix = plugin.getConfig().getString("prefix");
             if (prefix != null) {
                 messageCache.put("prefix", prefix);
+                logger.info("MessageManager: Loaded prefix: " + prefix);
+            } else {
+                logger.warning("MessageManager: No prefix found in config!");
             }
             
             // Load messages from messages section
-        ConfigurationSection messages = plugin.getConfig().getConfigurationSection("messages");
-        if (messages != null) {
-            loadMessageSection(messages, "");
-                logger.info("Loaded " + messageCache.size() + " messages from configuration");
+            ConfigurationSection messages = plugin.getConfig().getConfigurationSection("messages");
+            if (messages != null) {
+                logger.info("MessageManager: Found messages section, loading messages...");
+                loadMessageSection(messages, "");
+                logger.info("MessageManager: Loaded " + messageCache.size() + " messages from configuration");
+                
+                // Debug: List some loaded messages
+                if (plugin.getConfigManager().isDebugMode()) {
+                    logger.info("MessageManager: Sample loaded messages:");
+                    int count = 0;
+                    for (String key : messageCache.keySet()) {
+                        if (count < 10) {
+                            logger.info("  " + key + ": " + messageCache.get(key));
+                            count++;
+                        } else {
+                            break;
+                        }
+                    }
+                }
             } else {
-                logger.warning("No messages section found in configuration!");
+                logger.severe("MessageManager: No messages section found in configuration!");
+                logger.severe("MessageManager: Available config sections: " + plugin.getConfig().getKeys(false));
             }
         } catch (Exception e) {
-            logger.severe("Error loading messages: " + e.getMessage());
+            logger.severe("MessageManager: Error loading messages: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -222,6 +262,27 @@ public class MessageManager {
         if (message != null) {
             player.sendMessage(message);
             trackMessageUsage(messageKey);
+        }
+    }
+    
+    public void sendRawString(Player player, String rawMessage) {
+        if (player == null) {
+            logger.warning("Attempted to send raw string to null player");
+            return;
+        }
+        
+        if (rawMessage == null || rawMessage.trim().isEmpty()) {
+            return;
+        }
+        
+        try {
+            Component message = miniMessage.deserialize(rawMessage);
+            player.sendMessage(message);
+        } catch (Exception e) {
+            logger.warning("Error parsing raw message: " + e.getMessage());
+            logger.warning("Raw message was: " + rawMessage);
+            // Fallback to plain text
+            player.sendMessage(rawMessage);
         }
     }
     
@@ -613,10 +674,14 @@ public class MessageManager {
     public Component getMessage(Player player, String messageKey, TagResolver... placeholders) {
         String rawMessage = getRawMessage(messageKey);
         if (rawMessage == null) {
-            logger.warning("Message not found: " + messageKey);
+            logger.warning("MessageManager: Message not found: " + messageKey);
+            logger.warning("MessageManager: Available messages: " + messageCache.keySet());
             missingMessages.add(messageKey);
             return miniMessage.deserialize("<color:" + ERROR_COLOR + ">Message not found: " + messageKey + "</color>");
         }
+        
+        // Convert legacy {placeholder} format to <placeholder> format
+        rawMessage = convertLegacyPlaceholders(rawMessage);
         
         // Parse PlaceholderAPI placeholders if enabled and player is provided
         if (placeholderAPIEnabled && player != null) {
@@ -644,6 +709,18 @@ public class MessageManager {
             invalidMessages.add(messageKey + ": " + e.getMessage());
             return miniMessage.deserialize("<color:" + ERROR_COLOR + ">Error parsing message: " + messageKey + "</color>");
         }
+    }
+    
+    /**
+     * Convert legacy {placeholder} format to <placeholder> format for MiniMessage TagResolver compatibility
+     * @param message The message with legacy placeholders
+     * @return The message with converted placeholders
+     */
+    private String convertLegacyPlaceholders(String message) {
+        if (message == null) return null;
+        
+        // Use the LEGACY_PLACEHOLDER pattern to find and replace {placeholder} with <placeholder>
+        return LEGACY_PLACEHOLDER.matcher(message).replaceAll("<$1>");
     }
     
     private String parsePlaceholderAPI(Player player, String message) {
@@ -852,6 +929,28 @@ public class MessageManager {
         return new ArrayList<>(invalidMessages);
     }
     
+    public Map<String, String> getAllMessages() {
+        return new HashMap<>(messageCache);
+    }
+    
+    public void testMessage(String messageKey) {
+        logger.info("=== Testing Message: " + messageKey + " ===");
+        String rawMessage = getRawMessage(messageKey);
+        if (rawMessage != null) {
+            logger.info("Raw message found: " + rawMessage);
+            try {
+                Component parsed = miniMessage.deserialize(rawMessage);
+                logger.info("Message parsed successfully");
+            } catch (Exception e) {
+                logger.warning("Failed to parse message: " + e.getMessage());
+            }
+        } else {
+            logger.warning("Message not found in cache");
+            logger.info("Available messages: " + messageCache.keySet());
+        }
+        logger.info("=== End Test ===");
+    }
+    
     public boolean isPlaceholderAPIEnabled() {
         return placeholderAPIEnabled;
     }
@@ -986,6 +1085,23 @@ public class MessageManager {
         logger.info("Active action bar tasks: " + actionBarTasks.size());
         logger.info("Missing messages: " + missingMessages.size());
         logger.info("Invalid messages: " + invalidMessages.size());
+        
+        // Check if config is loaded
+        logger.info("Config loaded: " + (plugin.getConfig() != null));
+        if (plugin.getConfig() != null) {
+            logger.info("Config keys: " + plugin.getConfig().getKeys(false));
+            ConfigurationSection messages = plugin.getConfig().getConfigurationSection("messages");
+            logger.info("Messages section exists: " + (messages != null));
+            if (messages != null) {
+                logger.info("Messages section keys: " + messages.getKeys(false));
+            }
+        }
+        
+        // List all loaded message keys
+        logger.info("Loaded message keys:");
+        for (String key : messageCache.keySet()) {
+            logger.info("  " + key);
+        }
         
         if (plugin.getConfigManager().isDebugMode()) {
             logger.info("Most used messages:");

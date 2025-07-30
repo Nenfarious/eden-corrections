@@ -1,5 +1,6 @@
 package dev.lsdmc.edenCorrections;
 
+import dev.lsdmc.edenCorrections.managers.SpamControlManager;
 import dev.lsdmc.edenCorrections.config.ConfigManager;
 import dev.lsdmc.edenCorrections.managers.DutyManager;
 import dev.lsdmc.edenCorrections.managers.WantedManager;
@@ -8,11 +9,16 @@ import dev.lsdmc.edenCorrections.managers.JailManager;
 import dev.lsdmc.edenCorrections.managers.MessageManager;
 import dev.lsdmc.edenCorrections.managers.ContrabandManager;
 import dev.lsdmc.edenCorrections.managers.DutyBankingManager;
+import dev.lsdmc.edenCorrections.managers.SecurityManager;
+import dev.lsdmc.edenCorrections.managers.BossBarManager;
+import dev.lsdmc.edenCorrections.managers.GuardLootManager;
+import dev.lsdmc.edenCorrections.managers.LuckPermsMetaManager;
 import dev.lsdmc.edenCorrections.storage.DataManager;
 import dev.lsdmc.edenCorrections.events.GuardEventHandler;
 import dev.lsdmc.edenCorrections.commands.CommandHandler;
 import dev.lsdmc.edenCorrections.integrations.EdenCorrectionsExpansion;
 import dev.lsdmc.edenCorrections.utils.WorldGuardUtils;
+import dev.lsdmc.edenCorrections.managers.GuardTagManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.entity.Player;
 
@@ -38,6 +44,15 @@ public class EdenCorrections extends JavaPlugin {
     private ContrabandManager contrabandManager;
     private DutyBankingManager dutyBankingManager;
     
+    // Security and UI managers
+    private SecurityManager securityManager;
+    private BossBarManager bossBarManager;
+    private GuardTagManager guardTagManager;
+    private GuardLootManager guardLootManager;
+    
+    // Spam control manager
+    private SpamControlManager spamControlManager;
+    
     // Event handler
     private GuardEventHandler eventHandler;
     
@@ -46,6 +61,15 @@ public class EdenCorrections extends JavaPlugin {
     
     // PlaceholderAPI integration
     private EdenCorrectionsExpansion placeholderExpansion;
+    
+    // Integration managers
+    private dev.lsdmc.edenCorrections.integrations.CMIIntegration cmiIntegration;
+    
+    // LuckPerms meta integration for guard tags and wanted indicators
+    private LuckPermsMetaManager luckPermsMetaManager;
+    
+    // Vault Economy Integration for penalty system
+    private dev.lsdmc.edenCorrections.integrations.VaultEconomyManager vaultEconomyManager;
     
     @Override
     public void onEnable() {
@@ -119,11 +143,48 @@ public class EdenCorrections extends JavaPlugin {
             logger.info("Cleaning up event handler...");
         }
         
+        if (spamControlManager != null) {
+            try {
+                spamControlManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up SpamControlManager: " + e.getMessage());
+            }
+        }
+        
+        if (guardLootManager != null) {
+            logger.info("Cleaning up GuardLootManager...");
+            // GuardLootManager doesn't require explicit cleanup but we log it for completeness
+        }
+        
+        if (guardTagManager != null) {
+            try {
+                guardTagManager.cleanupAllGuardTags();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up GuardTagManager: " + e.getMessage());
+            }
+        }
+        
         if (dutyBankingManager != null) {
             try {
                 dutyBankingManager.cleanup();
             } catch (Exception e) {
                 logger.warning("Error cleaning up DutyBankingManager: " + e.getMessage());
+            }
+        }
+        
+        if (bossBarManager != null) {
+            try {
+                bossBarManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up BossBarManager: " + e.getMessage());
+            }
+        }
+        
+        if (securityManager != null) {
+            try {
+                securityManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up SecurityManager: " + e.getMessage());
             }
         }
         
@@ -136,8 +197,11 @@ public class EdenCorrections extends JavaPlugin {
         }
         
         if (jailManager != null) {
-            logger.info("Cleaning up JailManager...");
-            // JailManager cleanup can be added in future if needed
+            try {
+                jailManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up JailManager: " + e.getMessage());
+            }
         }
         
         if (chaseManager != null) {
@@ -149,8 +213,11 @@ public class EdenCorrections extends JavaPlugin {
         }
         
         if (wantedManager != null) {
-            logger.info("Cleaning up WantedManager...");
-            // WantedManager cleanup can be added in future if needed
+            try {
+                wantedManager.cleanup();
+            } catch (Exception e) {
+                logger.warning("Error cleaning up WantedManager: " + e.getMessage());
+            }
         }
         
         if (dutyManager != null) {
@@ -180,6 +247,15 @@ public class EdenCorrections extends JavaPlugin {
         if (worldGuardUtils != null) {
             logger.info("Cleaning up WorldGuardUtils...");
             // WorldGuardUtils doesn't need explicit cleanup, but we log it for completeness
+        }
+        
+        if (luckPermsMetaManager != null) {
+            try {
+                luckPermsMetaManager.cleanup();
+                logger.info("Cleaned up LuckPerms meta tags");
+            } catch (Exception e) {
+                logger.warning("Error cleaning up LuckPerms meta: " + e.getMessage());
+            }
         }
     }
     
@@ -217,6 +293,13 @@ public class EdenCorrections extends JavaPlugin {
         contrabandManager = new ContrabandManager(this);
         dutyBankingManager = new DutyBankingManager(this);
         
+        // Initialize security and UI managers
+        securityManager = new SecurityManager(this);
+        bossBarManager = new BossBarManager(this);
+        guardTagManager = new GuardTagManager(this);
+        guardLootManager = new GuardLootManager(this);
+        spamControlManager = new SpamControlManager(this);
+        
         // Initialize managers
         dutyManager.initialize();
         wantedManager.initialize();
@@ -224,6 +307,27 @@ public class EdenCorrections extends JavaPlugin {
         jailManager.initialize();
         contrabandManager.initialize();
         dutyBankingManager.initialize();
+        securityManager.initialize();
+        bossBarManager.initialize();
+        guardTagManager.initialize();
+        guardLootManager.initialize();
+        spamControlManager.initialize();
+        
+        // Initialize integration managers
+        cmiIntegration = new dev.lsdmc.edenCorrections.integrations.CMIIntegration(this);
+        try {
+            luckPermsMetaManager = new LuckPermsMetaManager(this);
+            luckPermsMetaManager.initialize();
+            logger.info("LuckPerms meta integration enabled - guard tags ready");
+        } catch (Exception e) {
+            logger.warning("Failed to initialize LuckPerms meta integration: " + e.getMessage());
+            luckPermsMetaManager = null;
+        }
+        vaultEconomyManager = new dev.lsdmc.edenCorrections.integrations.VaultEconomyManager(this);
+        
+        // Initialize integrations
+        cmiIntegration.testIntegration();
+        vaultEconomyManager.initialize();
     }
     
     private void registerEventsAndCommands() {
@@ -256,6 +360,16 @@ public class EdenCorrections extends JavaPlugin {
             
             configManager.reload();
             messageManager.reload();
+            
+            // Reload guard tag manager configuration
+            if (guardTagManager != null) {
+                guardTagManager.reloadConfiguration();
+            }
+            
+            // Reload LuckPerms meta configuration
+            if (luckPermsMetaManager != null) {
+                luckPermsMetaManager.loadConfiguration();
+            }
             
             // Report configuration validation results
             if (!configManager.isConfigValid()) {
@@ -368,6 +482,34 @@ public class EdenCorrections extends JavaPlugin {
         } else {
             logger.warning("CMI not found - guard kits will not be given");
         }
+        
+        // Test LuckPerms meta integration if available  
+        if (getServer().getPluginManager().getPlugin("LuckPerms") != null) {
+            try {
+                if (luckPermsMetaManager != null && luckPermsMetaManager.testIntegration()) {
+                    logger.info("LuckPerms meta integration verified for guard tags");
+                } else {
+                    logger.warning("LuckPerms found but meta integration test failed");
+                }
+            } catch (Exception e) {
+                logger.warning("LuckPerms meta integration test failed: " + e.getMessage());
+            }
+        } else {
+            logger.warning("LuckPerms not found - guard tag features disabled");
+        }
+        
+        // Validate LuckPerms Meta Integration
+        if (luckPermsMetaManager != null && !luckPermsMetaManager.isAvailable()) {
+            logger.warning("LuckPerms meta integration failed - guard tag features will be limited");
+        }
+        
+        // Validate Vault Economy Integration
+        if (vaultEconomyManager != null && !vaultEconomyManager.isAvailable()) {
+            logger.warning("Vault Economy integration failed - penalty economy features will be disabled");
+            logger.info("Install Vault and an economy plugin (like EssentialsX) to enable penalty deductions");
+        } else if (vaultEconomyManager != null && vaultEconomyManager.isAvailable()) {
+            logger.info("Vault Economy integration successful - penalty system ready");
+        }
     }
     
     public void logSystemStats() {
@@ -386,6 +528,7 @@ public class EdenCorrections extends JavaPlugin {
             logger.info("WorldGuard Integration: " + (getServer().getPluginManager().getPlugin("WorldGuard") != null ? "Available" : "Not Found"));
             logger.info("CoinsEngine Integration: " + (getServer().getPluginManager().getPlugin("CoinsEngine") != null ? "Available" : "Not Found"));
             logger.info("CMI Integration: " + (getServer().getPluginManager().getPlugin("CMI") != null ? "Available" : "Not Found"));
+            logger.info("UNT Integration: " + (getServer().getPluginManager().getPlugin("UnlimitedNameTags") != null ? "Available" : "Not Found"));
             
             logger.info("=== End System Statistics ===");
             
@@ -442,6 +585,7 @@ public class EdenCorrections extends JavaPlugin {
             logger.info("PlaceholderAPI: " + (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null ? "Available" : "Not Found"));
             logger.info("CoinsEngine: " + (getServer().getPluginManager().getPlugin("CoinsEngine") != null ? "Available" : "Not Found"));
             logger.info("CMI: " + (getServer().getPluginManager().getPlugin("CMI") != null ? "Available" : "Not Found"));
+            logger.info("UNT: " + (getServer().getPluginManager().getPlugin("UnlimitedNameTags") != null ? "Available" : "Not Found"));
             
             // WorldGuard detailed status
             if (worldGuardUtils != null) {
@@ -473,6 +617,10 @@ public class EdenCorrections extends JavaPlugin {
             logger.info("Debug Mode: " + configManager.isDebugMode());
             logger.info("Contraband Enabled: " + configManager.isContrabandEnabled());
             logger.info("Duty Banking Enabled: " + configManager.isDutyBankingEnabled());
+            logger.info("Penalty Escalation Enabled: " + configManager.isPenaltyEscalationEnabled());
+            logger.info("Jail-Chase Integration Enabled: " + configManager.isJailChaseIntegrationEnabled());
+            logger.info("UNT Guard Tags Enabled: " + configManager.isLuckPermsGuardTagsEnabled());
+            logger.info("UNT Wanted Indicators Enabled: " + configManager.isLuckPermsWantedIndicatorsEnabled());
             logger.info("Max Wanted Level: " + configManager.getMaxWantedLevel());
             logger.info("Max Chase Distance: " + configManager.getMaxChaseDistance());
             logger.info("Max Concurrent Chases: " + configManager.getMaxConcurrentChases());
@@ -536,5 +684,37 @@ public class EdenCorrections extends JavaPlugin {
     
     public WorldGuardUtils getWorldGuardUtils() {
         return worldGuardUtils;
+    }
+    
+    public SecurityManager getSecurityManager() {
+        return securityManager;
+    }
+    
+    public BossBarManager getBossBarManager() {
+        return bossBarManager;
+    }
+    
+    public GuardTagManager getGuardTagManager() {
+        return guardTagManager;
+    }
+    
+    public GuardLootManager getGuardLootManager() {
+        return guardLootManager;
+    }
+    
+    public SpamControlManager getSpamControlManager() {
+        return spamControlManager;
+    }
+    
+    public dev.lsdmc.edenCorrections.integrations.CMIIntegration getCMIIntegration() {
+        return cmiIntegration;
+    }
+    
+    public LuckPermsMetaManager getLuckPermsMetaManager() {
+        return luckPermsMetaManager;
+    }
+    
+    public dev.lsdmc.edenCorrections.integrations.VaultEconomyManager getVaultEconomyManager() {
+        return vaultEconomyManager;
     }
 } 

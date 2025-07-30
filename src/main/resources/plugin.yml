@@ -38,12 +38,6 @@ commands:
     permission: edencorrections.admin
     permission-message: You don't have permission to use this command!
 
-  edenreload:
-    description: Reload EdenCorrections configuration
-    usage: /edenreload
-    permission: edencorrections.admin
-    permission-message: You don't have permission to use this command!
-
   sword:
     description: Request player to drop their sword
     usage: /sword <player>
@@ -84,6 +78,12 @@ commands:
     description: Show helpful tips for using the corrections system
     usage: /tips [duty|contraband|chase|jail|banking]
     permission: edencorrections.guard
+    permission-message: You don't have permission to use this command!
+    
+  area:
+    description: Manage chase restricted areas
+    usage: /area <list|add|remove|check> [area_name]
+    permission: edencorrections.admin.area
     permission-message: You don't have permission to use this command!
 
 permissions:
@@ -139,7 +139,12 @@ permissions:
     default: op
     children:
       edencorrections.admin: true
+      edencorrections.admin.area: true
       
   edencorrections.admin:
     description: Full administrative access to EdenCorrections
+    default: op
+    
+  edencorrections.admin.area:
+    description: Permission to manage chase restricted areas
     default: op

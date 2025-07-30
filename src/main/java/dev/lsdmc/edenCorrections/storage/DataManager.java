@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.ArrayList;
 import java.sql.SQLException;
+import org.bukkit.Bukkit;
 
 public class DataManager {
     
@@ -32,6 +33,7 @@ public class DataManager {
     // Cache management
     private final Map<UUID, Long> lastCacheUpdate;
     private static final long CACHE_EXPIRY_TIME = 5 * 60 * 1000L; // 5 minutes
+    private static final int MAX_CACHE_SIZE = 1000; // Maximum number of cached players
     
     public DataManager(EdenCorrections plugin) {
         this.plugin = plugin;
@@ -63,31 +65,30 @@ public class DataManager {
     }
     
     private void initializeDatabase() throws SQLException {
-        String databaseType = plugin.getConfigManager().getDatabaseType().toLowerCase();
+        String dbType = plugin.getConfigManager().getDatabaseType().toLowerCase();
         
-        switch (databaseType) {
-            case "sqlite":
-                String sqliteFile = plugin.getConfigManager().getSQLiteFile();
-                databaseHandler = new SQLiteHandler(plugin, sqliteFile);
-                break;
-                
-            case "mysql":
-                // Get MySQL configuration from config
-                String host = plugin.getConfigManager().getConfig().getString("database.mysql.host", "localhost");
-                int port = plugin.getConfigManager().getConfig().getInt("database.mysql.port", 3306);
-                String database = plugin.getConfigManager().getConfig().getString("database.mysql.database", "edencorrections");
-                String username = plugin.getConfigManager().getConfig().getString("database.mysql.username", "username");
-                String password = plugin.getConfigManager().getConfig().getString("database.mysql.password", "password");
-                
-                databaseHandler = new MySQLHandler(plugin, host, port, database, username, password);
-                break;
-                
-            default:
-                throw new IllegalArgumentException("Unsupported database type: " + databaseType);
+        if ("sqlite".equalsIgnoreCase(dbType)) {
+            String sqliteFile = plugin.getConfigManager().getSQLiteFile();
+            databaseHandler = new SQLiteHandler(plugin, sqliteFile);
+            logger.info("Using SQLite database: " + sqliteFile);
+        } else if ("mysql".equalsIgnoreCase(dbType)) {
+            // MySQL configuration
+            String host = plugin.getConfigManager().getMySQLHost();
+            int port = plugin.getConfigManager().getMySQLPort();
+            String database = plugin.getConfigManager().getMySQLDatabase();
+            String username = plugin.getConfigManager().getMySQLUsername();
+            String password = plugin.getConfigManager().getMySQLPassword();
+            
+            // Initialize MySQL handler
+            databaseHandler = new MySQLHandler(plugin, host, port, database, username, password);
+            logger.info("Using MySQL database: " + host + ":" + port + "/" + database);
+        } else {
+            throw new SQLException("Unsupported database type: " + dbType);
         }
         
-        // Initialize the database handler
+        // Initialize the database
         databaseHandler.initialize();
+        logger.info("Database initialized successfully");
         
         // Test the connection
         if (!databaseHandler.testConnection()) {
@@ -124,11 +125,23 @@ public class DataManager {
     }
     
     private void startCacheCleanup() {
-        // Schedule periodic cache cleanup
-        plugin.getServer().getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-            cleanupExpiredCache();
-            performDatabaseMaintenance();
-        }, 20L * 60L * 5L, 20L * 60L * 5L); // Run every 5 minutes
+        // Start cache cleanup task (every 5 minutes)
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::cleanupExpiredCache, 
+            6000L, 6000L); // 5 minutes = 6000 ticks
+        
+        // Start database maintenance task 
+        int maintenanceIntervalMinutes = plugin.getConfigManager().getDatabaseMaintenanceInterval();
+        long maintenanceIntervalTicks = maintenanceIntervalMinutes * 60L * 20L; // Convert minutes to ticks
+        
+        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::performDatabaseMaintenance,
+            maintenanceIntervalTicks, maintenanceIntervalTicks);
+        
+        // Only perform maintenance if enabled
+        if (plugin.getConfigManager().isDatabaseMaintenanceEnabled()) {
+            logger.info("Database maintenance scheduled every " + maintenanceIntervalMinutes + " minutes");
+        } else {
+            logger.info("Database maintenance is disabled in configuration");
+        }
     }
     
     private void cleanupExpiredCache() {
@@ -142,6 +155,22 @@ public class DataManager {
             }
             return false;
         });
+        
+        // Enforce cache size limit
+        if (playerDataCache.size() > MAX_CACHE_SIZE) {
+            // Remove oldest entries to maintain size limit
+            List<Map.Entry<UUID, Long>> sortedEntries = new ArrayList<>(lastCacheUpdate.entrySet());
+            sortedEntries.sort(Map.Entry.comparingByValue());
+            
+            int toRemove = playerDataCache.size() - MAX_CACHE_SIZE;
+            for (int i = 0; i < toRemove && i < sortedEntries.size(); i++) {
+                UUID playerId = sortedEntries.get(i).getKey();
+                playerDataCache.remove(playerId);
+                lastCacheUpdate.remove(playerId);
+            }
+            
+            logger.info("Cache size limit reached, removed " + toRemove + " oldest entries");
+        }
         
         // Clean up expired chases
         activeChases.entrySet().removeIf(entry -> entry.getValue().isExpired());
@@ -294,14 +323,14 @@ public class DataManager {
     
     public ChaseData getChaseByGuard(UUID guardId) {
         return activeChases.values().stream()
-                .filter(chase -> chase.getGuardId().equals(guardId) && chase.isActive())
+                .filter(chase -> chase.getGuardId() != null && chase.getGuardId().equals(guardId) && chase.isActive())
                 .findFirst()
                 .orElse(null);
     }
     
     public ChaseData getChaseByTarget(UUID targetId) {
         return activeChases.values().stream()
-                .filter(chase -> chase.getTargetId().equals(targetId) && chase.isActive())
+                .filter(chase -> chase.getTargetId() != null && chase.getTargetId().equals(targetId) && chase.isActive())
                 .findFirst()
                 .orElse(null);
     }
@@ -401,19 +430,74 @@ public class DataManager {
         });
     }
     
+    /**
+     * Check if a player has stored inventory data
+     * @param playerId the player's UUID
+     * @return true if stored inventory exists, false otherwise
+     */
+    public boolean hasStoredInventory(UUID playerId) {
+        try {
+            String inventoryData = loadPlayerInventory(playerId);
+            return inventoryData != null && !inventoryData.trim().isEmpty();
+        } catch (Exception e) {
+            logger.warning("Failed to check stored inventory for " + playerId + ": " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Get all players who have stored inventory data
+     * @return list of player UUIDs with stored inventory
+     */
+    public List<UUID> getPlayersWithStoredInventory() {
+        try {
+            return databaseHandler.getPlayersWithStoredInventory().get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            logger.warning("Failed to get players with stored inventory: " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+    
     // === UTILITY METHODS ===
     
     public boolean isPlayerOnDuty(UUID playerId) {
+        // Check cache first for better performance
+        PlayerData cachedData = playerDataCache.get(playerId);
+        if (cachedData != null) {
+            Long lastUpdate = lastCacheUpdate.get(playerId);
+            if (lastUpdate != null && System.currentTimeMillis() - lastUpdate < CACHE_EXPIRY_TIME) {
+                return cachedData.isOnDuty();
+            }
+        }
+        
         PlayerData data = getPlayerData(playerId);
         return data != null && data.isOnDuty();
     }
     
     public boolean isPlayerWanted(UUID playerId) {
+        // Check cache first for better performance
+        PlayerData cachedData = playerDataCache.get(playerId);
+        if (cachedData != null) {
+            Long lastUpdate = lastCacheUpdate.get(playerId);
+            if (lastUpdate != null && System.currentTimeMillis() - lastUpdate < CACHE_EXPIRY_TIME) {
+                return cachedData.isWanted();
+            }
+        }
+        
         PlayerData data = getPlayerData(playerId);
         return data != null && data.isWanted();
     }
     
     public boolean isPlayerBeingChased(UUID playerId) {
+        // Check cache first for better performance
+        PlayerData cachedData = playerDataCache.get(playerId);
+        if (cachedData != null) {
+            Long lastUpdate = lastCacheUpdate.get(playerId);
+            if (lastUpdate != null && System.currentTimeMillis() - lastUpdate < CACHE_EXPIRY_TIME) {
+                return cachedData.isBeingChased();
+            }
+        }
+        
         PlayerData data = getPlayerData(playerId);
         return data != null && data.isBeingChased();
     }

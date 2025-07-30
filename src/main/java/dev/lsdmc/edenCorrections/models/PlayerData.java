@@ -26,7 +26,14 @@ public class PlayerData {
     private int sessionKills;
     private int sessionDetections;
     
-    // Wanted level information
+    // === PENALTY ESCALATION TRACKING ===
+    private long penaltyStartTime = 0;        // When penalties started being applied
+    private int currentPenaltyStage = 0;       // Current penalty stage (0 = no penalties, 1 = stage 1, 2 = stage 2, 3+ = recurring)
+    private long lastPenaltyTime = 0;          // Last time a penalty was applied
+    private long lastSlownessApplication = 0;  // Last time slowness effect was applied
+    private boolean hasActivePenaltyBossBar = false; // Track if penalty boss bar is active
+
+    // === WANTED SYSTEM DATA ===
     private int wantedLevel;
     private long wantedExpireTime;
     private String wantedReason;
@@ -98,7 +105,14 @@ public class PlayerData {
     public int getSessionKills() { return sessionKills; }
     public int getSessionDetections() { return sessionDetections; }
     
-    // Setters
+    // === PENALTY ESCALATION GETTERS ===
+    public long getPenaltyStartTime() { return penaltyStartTime; }
+    public int getCurrentPenaltyStage() { return currentPenaltyStage; }
+    public long getLastPenaltyTime() { return lastPenaltyTime; }
+    public long getLastSlownessApplication() { return lastSlownessApplication; }
+    public boolean hasActivePenaltyBossBar() { return hasActivePenaltyBossBar; }
+
+    // === SETTERS ===
     public void setOnDuty(boolean onDuty) { this.isOnDuty = onDuty; }
     public void setDutyStartTime(long dutyStartTime) { this.dutyStartTime = dutyStartTime; }
     public void setOffDutyTime(long offDutyTime) { this.offDutyTime = offDutyTime; }
@@ -124,7 +138,14 @@ public class PlayerData {
     public void setSessionKills(int sessionKills) { this.sessionKills = sessionKills; }
     public void setSessionDetections(int sessionDetections) { this.sessionDetections = sessionDetections; }
     
-    // Utility methods
+    // === PENALTY ESCALATION SETTERS ===
+    public void setPenaltyStartTime(long penaltyStartTime) { this.penaltyStartTime = penaltyStartTime; }
+    public void setCurrentPenaltyStage(int currentPenaltyStage) { this.currentPenaltyStage = currentPenaltyStage; }
+    public void setLastPenaltyTime(long lastPenaltyTime) { this.lastPenaltyTime = lastPenaltyTime; }
+    public void setLastSlownessApplication(long lastSlownessApplication) { this.lastSlownessApplication = lastSlownessApplication; }
+    public void setHasActivePenaltyBossBar(boolean hasActivePenaltyBossBar) { this.hasActivePenaltyBossBar = hasActivePenaltyBossBar; }
+
+    // === UTILITY METHODS ===
     public boolean isWanted() {
         return wantedLevel > 0 && System.currentTimeMillis() < wantedExpireTime;
     }
@@ -181,15 +202,42 @@ public class PlayerData {
     }
     
     public boolean hasAvailableOffDutyTime() {
-        return earnedOffDutyTime > 0;
+        // If we haven't gone off duty yet, we have all our earned time available
+        if (offDutyTime == 0) {
+            return earnedOffDutyTime > 0;
+        }
+        
+        // Calculate how much time we've already used while off duty
+        long timeSinceOffDuty = System.currentTimeMillis() - offDutyTime;
+        long remainingTime = earnedOffDutyTime - timeSinceOffDuty;
+        
+        return remainingTime > 0;
     }
     
     public long getAvailableOffDutyTimeInSeconds() {
-        return earnedOffDutyTime / 1000L;
+        // If we haven't gone off duty yet, return all earned time
+        if (offDutyTime == 0) {
+            return earnedOffDutyTime / 1000L;
+        }
+        
+        // Calculate remaining time after subtracting time already used
+        long timeSinceOffDuty = System.currentTimeMillis() - offDutyTime;
+        long remainingTime = Math.max(0, earnedOffDutyTime - timeSinceOffDuty);
+        
+        return remainingTime / 1000L;
     }
     
     public long getAvailableOffDutyTimeInMinutes() {
-        return earnedOffDutyTime / (1000L * 60L);
+        // If we haven't gone off duty yet, return all earned time
+        if (offDutyTime == 0) {
+            return earnedOffDutyTime / (1000L * 60L);
+        }
+        
+        // Calculate remaining time after subtracting time already used
+        long timeSinceOffDuty = System.currentTimeMillis() - offDutyTime;
+        long remainingTime = Math.max(0, earnedOffDutyTime - timeSinceOffDuty);
+        
+        return remainingTime / (1000L * 60L);
     }
     
     public void incrementSessionSearches() {
@@ -222,6 +270,41 @@ public class PlayerData {
         this.hasBeenNotifiedOfExpiredTime = false;
     }
     
+    // === PENALTY UTILITY METHODS ===
+    
+    public void initializePenaltyTracking() {
+        this.penaltyStartTime = System.currentTimeMillis();
+        this.currentPenaltyStage = 0;
+        this.lastPenaltyTime = 0;
+        this.lastSlownessApplication = 0;
+        this.hasActivePenaltyBossBar = false;
+    }
+    
+    public void clearPenaltyTracking() {
+        this.penaltyStartTime = 0;
+        this.currentPenaltyStage = 0;
+        this.lastPenaltyTime = 0;
+        this.lastSlownessApplication = 0;
+        this.hasActivePenaltyBossBar = false;
+    }
+    
+    public boolean isPenaltyTrackingActive() {
+        return penaltyStartTime > 0 && currentPenaltyStage >= 0;
+    }
+    
+    public long getTimeSincePenaltyStart() {
+        return penaltyStartTime > 0 ? System.currentTimeMillis() - penaltyStartTime : 0;
+    }
+    
+    public long getTimeSinceLastPenalty() {
+        return lastPenaltyTime > 0 ? System.currentTimeMillis() - lastPenaltyTime : 0;
+    }
+    
+    public void advancePenaltyStage() {
+        this.currentPenaltyStage++;
+        this.lastPenaltyTime = System.currentTimeMillis();
+    }
+
     @Override
     public String toString() {
         return "PlayerData{" +

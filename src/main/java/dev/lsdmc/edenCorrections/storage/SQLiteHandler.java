@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import java.io.File;
 import java.io.IOException;
@@ -25,6 +26,9 @@ public class SQLiteHandler implements DatabaseHandler {
     
     private Connection connection;
     private boolean initialized = false;
+    
+    // Prepared statement cache for performance
+    private final Map<String, PreparedStatement> statementCache = new ConcurrentHashMap<>();
     
     // Database schema version for migrations
     private static final int SCHEMA_VERSION = 1;
@@ -106,6 +110,11 @@ public class SQLiteHandler implements DatabaseHandler {
                 session_arrests INTEGER NOT NULL DEFAULT 0,
                 session_kills INTEGER NOT NULL DEFAULT 0,
                 session_detections INTEGER NOT NULL DEFAULT 0,
+                penalty_start_time INTEGER NOT NULL DEFAULT 0,
+                current_penalty_stage INTEGER NOT NULL DEFAULT 0,
+                last_penalty_time INTEGER NOT NULL DEFAULT 0,
+                last_slowness_application INTEGER NOT NULL DEFAULT 0,
+                has_active_penalty_boss_bar INTEGER NOT NULL DEFAULT 0,
                 wanted_level INTEGER NOT NULL DEFAULT 0,
                 wanted_expire_time INTEGER NOT NULL DEFAULT 0,
                 wanted_reason TEXT,
@@ -184,6 +193,7 @@ public class SQLiteHandler implements DatabaseHandler {
             "CREATE INDEX IF NOT EXISTS idx_chase_guard ON chase_data(guard_id)",
             "CREATE INDEX IF NOT EXISTS idx_chase_target ON chase_data(target_id)",
             "CREATE INDEX IF NOT EXISTS idx_chase_active ON chase_data(is_active)",
+            "CREATE INDEX IF NOT EXISTS idx_chase_cleanup ON chase_data(is_active, end_time)",
             "CREATE INDEX IF NOT EXISTS idx_performance_player ON performance_stats(player_id)",
             "CREATE INDEX IF NOT EXISTS idx_performance_type ON performance_stats(stat_type)",
             "CREATE INDEX IF NOT EXISTS idx_performance_time ON performance_stats(recorded_at)"
@@ -240,9 +250,29 @@ public class SQLiteHandler implements DatabaseHandler {
         logger.info("No migrations needed from version " + fromVersion);
     }
     
+    // Get cached prepared statement or create new one
+    private PreparedStatement getPreparedStatement(String sql) throws SQLException {
+        return statementCache.computeIfAbsent(sql, k -> {
+            try {
+                return connection.prepareStatement(k);
+            } catch (SQLException e) {
+                logger.warning("Failed to create prepared statement: " + e.getMessage());
+                return null;
+            }
+        });
+    }
+    
     @Override
     public void close() {
         try {
+            // Close all prepared statements
+            for (PreparedStatement stmt : statementCache.values()) {
+                if (stmt != null && !stmt.isClosed()) {
+                    stmt.close();
+                }
+            }
+            statementCache.clear();
+            
             if (connection != null && !connection.isClosed()) {
                 connection.close();
             }
@@ -288,40 +318,50 @@ public class SQLiteHandler implements DatabaseHandler {
                     player_id, player_name, is_on_duty, duty_start_time, off_duty_time, 
                     grace_debt_time, guard_rank, earned_off_duty_time, has_earned_base_time, 
                     has_been_notified_expired, session_searches, session_successful_searches, 
-                    session_arrests, session_kills, session_detections, wanted_level, 
-                    wanted_expire_time, wanted_reason, being_chased, chaser_guard, 
-                    chase_start_time, total_arrests, total_violations, total_duty_time, last_updated
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    session_arrests, session_kills, session_detections, penalty_start_time,
+                    current_penalty_stage, last_penalty_time, last_slowness_application,
+                    has_active_penalty_boss_bar, wanted_level, wanted_expire_time, wanted_reason, 
+                    being_chased, chaser_guard, chase_start_time, total_arrests, total_violations, 
+                    total_duty_time, last_updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
             
-            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-                stmt.setString(1, playerData.getPlayerId().toString());
-                stmt.setString(2, playerData.getPlayerName());
-                stmt.setInt(3, playerData.isOnDuty() ? 1 : 0);
-                stmt.setLong(4, playerData.getDutyStartTime());
-                stmt.setLong(5, playerData.getOffDutyTime());
-                stmt.setLong(6, playerData.getGraceDebtTime());
-                stmt.setString(7, playerData.getGuardRank());
-                stmt.setLong(8, playerData.getEarnedOffDutyTime());
-                stmt.setInt(9, playerData.hasEarnedBaseTime() ? 1 : 0);
-                stmt.setInt(10, playerData.hasBeenNotifiedOfExpiredTime() ? 1 : 0);
-                stmt.setInt(11, playerData.getSessionSearches());
-                stmt.setInt(12, playerData.getSessionSuccessfulSearches());
-                stmt.setInt(13, playerData.getSessionArrests());
-                stmt.setInt(14, playerData.getSessionKills());
-                stmt.setInt(15, playerData.getSessionDetections());
-                stmt.setInt(16, playerData.getWantedLevel());
-                stmt.setLong(17, playerData.getWantedExpireTime());
-                stmt.setString(18, playerData.getWantedReason());
-                stmt.setInt(19, playerData.isBeingChased() ? 1 : 0);
-                stmt.setString(20, playerData.getChaserGuard() != null ? playerData.getChaserGuard().toString() : null);
-                stmt.setLong(21, playerData.getChaseStartTime());
-                stmt.setInt(22, playerData.getTotalArrests());
-                stmt.setInt(23, playerData.getTotalViolations());
-                stmt.setLong(24, playerData.getTotalDutyTime());
-                stmt.setLong(25, System.currentTimeMillis());
-                
-                stmt.executeUpdate();
+            try {
+                PreparedStatement stmt = getPreparedStatement(sql);
+                synchronized (stmt) {
+                    stmt.setString(1, playerData.getPlayerId().toString());
+                    stmt.setString(2, playerData.getPlayerName());
+                    stmt.setInt(3, playerData.isOnDuty() ? 1 : 0);
+                    stmt.setLong(4, playerData.getDutyStartTime());
+                    stmt.setLong(5, playerData.getOffDutyTime());
+                    stmt.setLong(6, playerData.getGraceDebtTime());
+                    stmt.setString(7, playerData.getGuardRank());
+                    stmt.setLong(8, playerData.getEarnedOffDutyTime());
+                    stmt.setInt(9, playerData.hasEarnedBaseTime() ? 1 : 0);
+                    stmt.setInt(10, playerData.hasBeenNotifiedOfExpiredTime() ? 1 : 0);
+                    stmt.setInt(11, playerData.getSessionSearches());
+                    stmt.setInt(12, playerData.getSessionSuccessfulSearches());
+                    stmt.setInt(13, playerData.getSessionArrests());
+                    stmt.setInt(14, playerData.getSessionKills());
+                    stmt.setInt(15, playerData.getSessionDetections());
+                    stmt.setLong(16, playerData.getPenaltyStartTime());
+                    stmt.setInt(17, playerData.getCurrentPenaltyStage());
+                    stmt.setLong(18, playerData.getLastPenaltyTime());
+                    stmt.setLong(19, playerData.getLastSlownessApplication());
+                    stmt.setInt(20, playerData.hasActivePenaltyBossBar() ? 1 : 0);
+                    stmt.setInt(21, playerData.getWantedLevel());
+                    stmt.setLong(22, playerData.getWantedExpireTime());
+                    stmt.setString(23, playerData.getWantedReason());
+                    stmt.setInt(24, playerData.isBeingChased() ? 1 : 0);
+                    stmt.setString(25, playerData.getChaserGuard() != null ? playerData.getChaserGuard().toString() : null);
+                    stmt.setLong(26, playerData.getChaseStartTime());
+                    stmt.setInt(27, playerData.getTotalArrests());
+                    stmt.setInt(28, playerData.getTotalViolations());
+                    stmt.setLong(29, playerData.getTotalDutyTime());
+                    stmt.setLong(30, System.currentTimeMillis());
+                    
+                    stmt.executeUpdate();
+                }
             } catch (SQLException e) {
                 logger.severe("Failed to save player data for " + playerData.getPlayerName() + ": " + e.getMessage());
                 throw new RuntimeException(e);
@@ -334,14 +374,17 @@ public class SQLiteHandler implements DatabaseHandler {
         return CompletableFuture.supplyAsync(() -> {
             String sql = "SELECT * FROM player_data WHERE player_id = ?";
             
-            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-                stmt.setString(1, playerId.toString());
-                ResultSet rs = stmt.executeQuery();
-                
-                if (rs.next()) {
-                    return mapResultSetToPlayerData(rs);
+            try {
+                PreparedStatement stmt = getPreparedStatement(sql);
+                synchronized (stmt) {
+                    stmt.setString(1, playerId.toString());
+                    ResultSet rs = stmt.executeQuery();
+                    
+                    if (rs.next()) {
+                        return mapResultSetToPlayerData(rs);
+                    }
+                    return null;
                 }
-                return null;
             } catch (SQLException e) {
                 logger.severe("Failed to load player data for " + playerId + ": " + e.getMessage());
                 throw new RuntimeException(e);
@@ -393,6 +436,13 @@ public class SQLiteHandler implements DatabaseHandler {
         data.setSessionArrests(rs.getInt("session_arrests"));
         data.setSessionKills(rs.getInt("session_kills"));
         data.setSessionDetections(rs.getInt("session_detections"));
+        
+        // Set penalty tracking information
+        data.setPenaltyStartTime(rs.getLong("penalty_start_time"));
+        data.setCurrentPenaltyStage(rs.getInt("current_penalty_stage"));
+        data.setLastPenaltyTime(rs.getLong("last_penalty_time"));
+        data.setLastSlownessApplication(rs.getLong("last_slowness_application"));
+        data.setHasActivePenaltyBossBar(rs.getInt("has_active_penalty_boss_bar") == 1);
         
         // Set wanted information
         data.setWantedLevel(rs.getInt("wanted_level"));
@@ -561,12 +611,15 @@ public class SQLiteHandler implements DatabaseHandler {
             long cutoffTime = System.currentTimeMillis() - (24 * 60 * 60 * 1000);
             String sql = "DELETE FROM chase_data WHERE is_active = 0 AND end_time < ?";
             
-            try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-                stmt.setLong(1, cutoffTime);
-                int deleted = stmt.executeUpdate();
-                
-                if (deleted > 0) {
-                    logger.info("Cleaned up " + deleted + " expired chase records");
+            try {
+                PreparedStatement stmt = getPreparedStatement(sql);
+                synchronized (stmt) {
+                    stmt.setLong(1, cutoffTime);
+                    int deleted = stmt.executeUpdate();
+                    
+                    if (deleted > 0) {
+                        logger.info("Cleaned up " + deleted + " expired chase records");
+                    }
                 }
             } catch (SQLException e) {
                 logger.severe("Failed to cleanup expired chases: " + e.getMessage());
@@ -632,6 +685,32 @@ public class SQLiteHandler implements DatabaseHandler {
         }, executor);
     }
     
+    @Override
+    public CompletableFuture<List<UUID>> getPlayersWithStoredInventory() {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT player_id FROM player_inventory_cache";
+            List<UUID> playerIds = new ArrayList<>();
+            
+            try (Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+                
+                while (rs.next()) {
+                    try {
+                        UUID playerId = UUID.fromString(rs.getString("player_id"));
+                        playerIds.add(playerId);
+                    } catch (IllegalArgumentException e) {
+                        logger.warning("Invalid UUID in inventory cache: " + rs.getString("player_id"));
+                    }
+                }
+            } catch (SQLException e) {
+                logger.severe("Failed to get players with stored inventory: " + e.getMessage());
+                throw new RuntimeException(e);
+            }
+            
+            return playerIds;
+        }, executor);
+    }
+    
     // === MAINTENANCE AND STATISTICS ===
     
     @Override
@@ -654,10 +733,8 @@ public class SQLiteHandler implements DatabaseHandler {
                     }
                 }
                 
-                // Vacuum database for performance
-                try (Statement stmt = connection.createStatement()) {
-                    stmt.execute("VACUUM");
-                }
+                // Attempt to vacuum database for performance (with safety checks)
+                attemptVacuum();
                 
                 // Update maintenance timestamp
                 setSchemaVersion(SCHEMA_VERSION);
@@ -669,6 +746,59 @@ public class SQLiteHandler implements DatabaseHandler {
                 throw new RuntimeException(e);
             }
         }, executor);
+    }
+    
+    /**
+     * Attempts to vacuum the database with safety checks to prevent conflicts
+     */
+    private void attemptVacuum() {
+        if (!plugin.getConfigManager().isDatabaseVacuumEnabled()) {
+            logger.warning("VACUUM operation is disabled in configuration");
+            return;
+        }
+        
+        logger.info("Starting VACUUM operation on SQLite database...");
+        
+        try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + databasePath)) {
+            // Set a timeout for the vacuum operation
+            int timeout = plugin.getConfigManager().getDatabaseVacuumTimeout();
+            
+            // Set busy timeout
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("PRAGMA busy_timeout = " + timeout);
+            }
+            
+            // Check if database is busy by attempting to get a lock
+            try {
+                // Try to get an exclusive lock
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("BEGIN EXCLUSIVE");
+                    stmt.execute("ROLLBACK");
+                }
+            } catch (SQLException e) {
+                if (e.getMessage().contains("database is locked") || 
+                    e.getMessage().contains("busy")) {
+                    logger.warning("Database is busy, skipping VACUUM operation");
+                    return;
+                }
+            }
+            
+            // Try to vacuum with the configured timeout
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("VACUUM");
+                logger.info("Database VACUUM completed successfully");
+            }
+            
+        } catch (SQLException e) {
+            if (e.getMessage().contains("database is locked") || 
+                e.getMessage().contains("cannot VACUUM") ||
+                e.getMessage().contains("SQL statements in progress") ||
+                e.getMessage().contains("busy")) {
+                logger.warning("Database is busy, skipping VACUUM operation: " + e.getMessage());
+            } else {
+                logger.warning("VACUUM operation failed: " + e.getMessage());
+            }
+        }
     }
     
     @Override

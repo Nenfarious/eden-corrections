@@ -130,6 +130,12 @@ public interface DatabaseHandler {
      */
     CompletableFuture<Void> deletePlayerInventory(UUID playerId);
     
+    /**
+     * Get all players who have stored inventory data
+     * @return CompletableFuture containing list of player UUIDs with stored inventory
+     */
+    CompletableFuture<List<UUID>> getPlayersWithStoredInventory();
+    
     // === STATISTICS AND MAINTENANCE ===
     
     /**

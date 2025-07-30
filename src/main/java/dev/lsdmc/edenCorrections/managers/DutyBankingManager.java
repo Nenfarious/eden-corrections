@@ -174,6 +174,9 @@ public class DutyBankingManager {
             data.setTotalDutyTime(remainingTime);
             plugin.getDataManager().savePlayerData(data);
             
+            // Show conversion boss bar
+            plugin.getBossBarManager().showGraceBossBar(player, 5);
+            
             // Send success message
             plugin.getMessageManager().sendMessage(player, "banking.conversion-success",
                 timePlaceholder("time", timeUsed),
@@ -224,11 +227,23 @@ public class DutyBankingManager {
         
         PlayerData data = plugin.getDataManager().getOrCreatePlayerData(player.getUniqueId(), player.getName());
         long totalDutyTime = data.getTotalDutyTime() / 1000L; // Convert to seconds
+        long earnedTime = data.getEarnedOffDutyTime() / 1000L; // Convert to seconds
         int availableTokens = getAvailableTokens(player);
+        int conversionRate = plugin.getConfigManager().getConversionRate();
+        int minimumTime = plugin.getConfigManager().getMinimumConversion();
         
-        plugin.getMessageManager().sendMessage(player, "banking.status",
-            timePlaceholder("time", totalDutyTime),
+        // Display comprehensive banking status
+        plugin.getMessageManager().sendMessage(player, "banking.status-header");
+        plugin.getMessageManager().sendMessage(player, "banking.earned-time",
+            timePlaceholder("time", earnedTime));
+        plugin.getMessageManager().sendMessage(player, "banking.duty-time",
+            timePlaceholder("time", totalDutyTime));
+        plugin.getMessageManager().sendMessage(player, "banking.available-tokens",
             numberPlaceholder("tokens", availableTokens));
+        plugin.getMessageManager().sendMessage(player, "banking.conversion-rate",
+            numberPlaceholder("rate", conversionRate));
+        plugin.getMessageManager().sendMessage(player, "banking.minimum-time",
+            timePlaceholder("time", minimumTime));
         
         return true;
     }

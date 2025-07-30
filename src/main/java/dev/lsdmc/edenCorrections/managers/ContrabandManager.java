@@ -51,6 +51,14 @@ public class ContrabandManager {
             return false;
         }
         
+        // Security check: Can target be contraband targeted?
+        if (!plugin.getSecurityManager().canPlayerBeContrabandTargeted(target)) {
+            plugin.getMessageManager().sendMessage(guard, "security.guard-immunity.contraband-protected",
+                playerPlaceholder("player", target));
+            plugin.getSecurityManager().logSecurityViolation("contraband request", guard, target);
+            return false;
+        }
+        
         // Check distance
         double distance = guard.getLocation().distance(target.getLocation());
         if (distance > plugin.getConfigManager().getMaxRequestDistance()) {
@@ -70,7 +78,7 @@ public class ContrabandManager {
         
         if (itemsConfig == null || itemsConfig.isEmpty()) {
             plugin.getMessageManager().sendMessage(guard, "universal.invalid-usage",
-                stringPlaceholder("command", "/contraband " + contrabandType));
+                stringPlaceholder("command", "/" + contrabandType + " <player>"));
             return false;
         }
         
@@ -78,7 +86,7 @@ public class ContrabandManager {
         List<Material> targetItems = parseContrabandItems(itemsConfig);
         if (targetItems.isEmpty()) {
             plugin.getMessageManager().sendMessage(guard, "universal.invalid-usage",
-                stringPlaceholder("command", "/contraband " + contrabandType));
+                stringPlaceholder("command", "/" + contrabandType + " <player>"));
             return false;
         }
         
@@ -113,15 +121,13 @@ public class ContrabandManager {
             stringPlaceholder("description", description),
             numberPlaceholder("seconds", timeout));
         
-        // Show countdown boss bar
-        plugin.getMessageManager().showCountdownBossBar(
-            target,
-            "bossbar.contraband-countdown",
-            BossBar.Color.RED,
-            BossBar.Overlay.PROGRESS,
-            timeout,
-            stringPlaceholder("description", description)
-        );
+        // Show enhanced countdown boss bar with better styling
+        plugin.getBossBarManager().showContrabandBossBar(target, timeout, description);
+        
+        // Send action bar notification
+        plugin.getMessageManager().sendActionBar(target, "actionbar.contraband-request",
+            stringPlaceholder("description", description),
+            numberPlaceholder("seconds", timeout));
         
         // Start timeout task
         BukkitTask timeoutTask = Bukkit.getScheduler().runTaskLater(plugin, () -> {
@@ -170,6 +176,10 @@ public class ContrabandManager {
             if (request.isCompliant()) {
                 handleContrabandCompliance(request, true);
             }
+        } else {
+            // Wrong item dropped - send warning but don't fail yet
+            plugin.getMessageManager().sendMessage(player, "contraband.detection.wrong-item",
+                stringPlaceholder("item", droppedMaterial.name()));
         }
     }
     
@@ -187,16 +197,26 @@ public class ContrabandManager {
         
         if (target != null) {
             // Hide boss bar
-            plugin.getMessageManager().hideBossBar(target);
+            plugin.getBossBarManager().hideBossBarByType(target, "contraband");
             
             if (compliant) {
-                // Success
+                // Success - player complied and dropped contraband
                 plugin.getMessageManager().sendMessage(target, "contraband.detection.compliance-success");
                 plugin.getMessageManager().sendActionBar(target, "actionbar.contraband-compliance");
+                
+                // Player is free to go - no wanted level increase
+                logger.info("Contraband compliance successful: " + target.getName() + " dropped " + request.getDescription());
             } else {
-                // Failed - increase wanted level
+                // Failed - player refused to drop contraband or timeout occurred
                 plugin.getMessageManager().sendMessage(target, "contraband.detection.compliance-failed");
+                
+                // Increase wanted level for contraband possession
                 increaseWantedLevel(target, "Contraband possession: " + request.getDescription());
+                
+                // Immediately start chase
+                if (guard != null) {
+                    startChaseAfterContrabandViolation(guard, target, request);
+                }
             }
         }
         
@@ -218,6 +238,7 @@ public class ContrabandManager {
     
     private void handleContrabandTimeout(ContrabandRequest request) {
         Player target = Bukkit.getPlayer(request.getTargetId());
+        Player guard = Bukkit.getPlayer(request.getGuardId());
         
         if (target != null) {
             // Check if player still has contraband items
@@ -233,12 +254,36 @@ public class ContrabandManager {
                 // Player still has contraband - violation
                 handleContrabandCompliance(request, false);
             } else {
-                // Player doesn't have items anymore (dropped or consumed)
+                // Player doesn't have items anymore (dropped or consumed) - compliance
                 handleContrabandCompliance(request, true);
             }
         } else {
             // Player offline - remove request
             activeRequests.remove(request.getTargetId());
+        }
+    }
+    
+    private void startChaseAfterContrabandViolation(Player guard, Player target, ContrabandRequest request) {
+        // Check if chase can start
+        if (!plugin.getChaseManager().canStartChase(guard, target)) {
+            // If chase can't start, just increase wanted level
+            logger.info("Chase could not start after contraband violation for " + target.getName());
+            return;
+        }
+        
+        // Start chase immediately
+        boolean chaseStarted = plugin.getChaseManager().startChase(guard, target);
+        
+        if (chaseStarted) {
+            plugin.getMessageManager().sendMessage(guard, "contraband.chase.started",
+                playerPlaceholder("target", target),
+                stringPlaceholder("reason", "Contraband possession: " + request.getDescription()));
+            
+            plugin.getMessageManager().sendMessage(target, "contraband.chase.target-notification",
+                playerPlaceholder("guard", guard),
+                stringPlaceholder("reason", "Contraband possession: " + request.getDescription()));
+            
+            logger.info("Chase started after contraband violation: " + guard.getName() + " -> " + target.getName());
         }
     }
     
@@ -249,6 +294,30 @@ public class ContrabandManager {
         
         // Set new wanted level
         plugin.getWantedManager().setWantedLevel(player, newLevel, reason);
+        
+        // Apply glow effect for wanted level 3+
+        if (newLevel >= 3) {
+            applyWantedGlowEffect(player, true);
+        }
+    }
+    
+    private void applyWantedGlowEffect(Player player, boolean shouldGlow) {
+        if (shouldGlow) {
+            // Make player glow red for guards on duty
+            player.setGlowing(true);
+            
+            // Send notification to guards
+            for (Player onlinePlayer : plugin.getServer().getOnlinePlayers()) {
+                if (plugin.getDutyManager().isOnDuty(onlinePlayer) && 
+                    plugin.getDutyManager().hasGuardPermission(onlinePlayer)) {
+                    plugin.getMessageManager().sendMessage(onlinePlayer, "wanted.glow.notification",
+                        playerPlaceholder("player", player),
+                        numberPlaceholder("level", plugin.getWantedManager().getWantedLevel(player)));
+                }
+            }
+        } else {
+            player.setGlowing(false);
+        }
     }
     
     // === CONTRABAND DETECTION METHODS ===
@@ -261,6 +330,14 @@ public class ContrabandManager {
         
         if (!plugin.getConfigManager().isDrugDetectionEnabled()) {
             plugin.getMessageManager().sendMessage(guard, "contraband.disabled");
+            return;
+        }
+        
+        // Security check: Can target be contraband targeted?
+        if (!plugin.getSecurityManager().canPlayerBeContrabandTargeted(target)) {
+            plugin.getMessageManager().sendMessage(guard, "security.guard-immunity.contraband-protected",
+                playerPlaceholder("player", target));
+            plugin.getSecurityManager().logSecurityViolation("drug test", guard, target);
             return;
         }
         
@@ -313,6 +390,31 @@ public class ContrabandManager {
                    " (Result: " + (foundDrugs ? "POSITIVE" : "NEGATIVE") + ")");
     }
     
+    // === CONTRABAND REMOVAL METHODS ===
+    
+    /**
+     * Remove contraband items from player when they are caught/jailed
+     * This is the only time contraband should be automatically taken
+     */
+    public void removeContrabandOnCapture(Player target) {
+        // Get all contraband types from config
+        String[] contrabandTypes = {"sword", "bow", "armor", "drugs"};
+        
+        for (String type : contrabandTypes) {
+            String itemsConfig = plugin.getConfigManager().getContrabandItems(type);
+            if (itemsConfig != null && !itemsConfig.isEmpty()) {
+                List<Material> contrabandItems = parseContrabandItems(itemsConfig);
+                
+                for (Material material : contrabandItems) {
+                    target.getInventory().remove(material);
+                }
+            }
+        }
+        
+        plugin.getMessageManager().sendMessage(target, "contraband.removal.captured");
+        logger.info("Contraband removed from " + target.getName() + " upon capture");
+    }
+    
     // === UTILITY METHODS ===
     
     public boolean hasActiveRequest(Player player) {
@@ -332,10 +434,32 @@ public class ContrabandManager {
             }
             
             // Hide boss bar
-            plugin.getMessageManager().hideBossBar(player);
+            plugin.getBossBarManager().hideBossBarByType(player, "contraband");
             
             logger.info("Contraband request cancelled for " + player.getName());
         }
+    }
+    
+    /**
+     * Check if a player has any contraband items
+     */
+    public boolean hasContrabandItems(Player player) {
+        String[] contrabandTypes = {"sword", "bow", "armor", "drugs"};
+        
+        for (String type : contrabandTypes) {
+            String itemsConfig = plugin.getConfigManager().getContrabandItems(type);
+            if (itemsConfig != null && !itemsConfig.isEmpty()) {
+                List<Material> contrabandItems = parseContrabandItems(itemsConfig);
+                
+                for (Material material : contrabandItems) {
+                    if (player.getInventory().contains(material)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;
     }
     
     // === CLEANUP METHODS ===
@@ -348,7 +472,7 @@ public class ContrabandManager {
             
             Player target = Bukkit.getPlayer(request.getTargetId());
             if (target != null) {
-                plugin.getMessageManager().hideBossBar(target);
+                plugin.getBossBarManager().hideBossBarByType(target, "contraband");
             }
         }
         
@@ -358,6 +482,11 @@ public class ContrabandManager {
     
     public void cleanupPlayer(Player player) {
         cancelActiveRequest(player);
+        
+        // Remove glow effect if player was wanted
+        if (plugin.getWantedManager().getWantedLevel(player) >= 3) {
+            applyWantedGlowEffect(player, false);
+        }
     }
     
     // === CONTRABAND REQUEST CLASS ===

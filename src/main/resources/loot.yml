@@ -1,0 +1,125 @@
+# ==================================================================
+# EDEN CORRECTIONS - GUARD LOOT CONFIGURATION
+# ==================================================================
+# This file configures what items guards drop when they die while on duty.
+# Instead of dropping their actual inventory, they will drop items from 
+# these configured loot pools to maintain gameplay balance.
+# ==================================================================
+
+# Guard loot pools based on rank
+# Each rank can have different loot tables
+guard-loot:
+  # Default loot for any guard rank not specifically configured
+  default:
+    enabled: true
+    # Minimum and maximum number of items to drop
+    min-items: 2
+    max-items: 4
+    
+    # Items that can be dropped (with weights for rarity)
+    # Higher weight = more likely to drop
+    # Format: 'MATERIAL:amount:weight' or 'MATERIAL:amount:weight:data'
+    items:
+      - 'COOKED_BEEF:2:30'        # Common food
+      - 'BREAD:3:25'              # Common food
+      - 'GOLDEN_APPLE:1:10'       # Uncommon healing
+      - 'IRON_INGOT:2:20'         # Common material
+      - 'GOLD_INGOT:1:15'         # Uncommon material
+      - 'DIAMOND:1:5'             # Rare material
+      - 'EMERALD:2:8'             # Uncommon currency
+      - 'ARROW:16:20'             # Common ammo
+      - 'ENDER_PEARL:1:12'        # Useful utility
+      - 'EXPERIENCE_BOTTLE:3:15'  # Experience
+      - 'POTION:1:10'             # Random potion (healing/strength/etc)
+  
+  # Loot for specific guard ranks
+  officer:
+    enabled: true
+    min-items: 3
+    max-items: 5
+    items:
+      - 'COOKED_BEEF:3:25'
+      - 'GOLDEN_APPLE:2:15'
+      - 'IRON_INGOT:3:20'
+      - 'GOLD_INGOT:2:18'
+      - 'DIAMOND:1:8'
+      - 'EMERALD:3:12'
+      - 'ARROW:24:15'
+      - 'ENDER_PEARL:2:15'
+      - 'EXPERIENCE_BOTTLE:5:18'
+      - 'ENCHANTED_GOLDEN_APPLE:1:3'  # Very rare
+      - 'TOTEM_OF_UNDYING:1:2'        # Extremely rare
+  
+  sergeant:
+    enabled: true
+    min-items: 4
+    max-items: 6
+    items:
+      - 'COOKED_BEEF:4:20'
+      - 'GOLDEN_APPLE:3:18'
+      - 'IRON_INGOT:4:18'
+      - 'GOLD_INGOT:3:20'
+      - 'DIAMOND:2:12'
+      - 'EMERALD:4:15'
+      - 'ARROW:32:12'
+      - 'ENDER_PEARL:3:18'
+      - 'EXPERIENCE_BOTTLE:8:20'
+      - 'ENCHANTED_GOLDEN_APPLE:1:5'
+      - 'TOTEM_OF_UNDYING:1:3'
+      - 'NETHERITE_SCRAP:1:2'         # Extremely rare
+  
+  lieutenant:
+    enabled: true
+    min-items: 5
+    max-items: 7
+    items:
+      - 'COOKED_BEEF:5:18'
+      - 'GOLDEN_APPLE:4:20'
+      - 'IRON_INGOT:5:15'
+      - 'GOLD_INGOT:4:22'
+      - 'DIAMOND:3:15'
+      - 'EMERALD:6:18'
+      - 'ARROW:48:10'
+      - 'ENDER_PEARL:4:20'
+      - 'EXPERIENCE_BOTTLE:12:22'
+      - 'ENCHANTED_GOLDEN_APPLE:1:8'
+      - 'TOTEM_OF_UNDYING:1:5'
+      - 'NETHERITE_SCRAP:1:4'
+      - 'NETHERITE_INGOT:1:1'         # Ultra rare
+  
+  captain:
+    enabled: true
+    min-items: 6
+    max-items: 8
+    items:
+      - 'COOKED_BEEF:6:15'
+      - 'GOLDEN_APPLE:5:22'
+      - 'IRON_INGOT:6:12'
+      - 'GOLD_INGOT:5:25'
+      - 'DIAMOND:4:18'
+      - 'EMERALD:8:20'
+      - 'ARROW:64:8'
+      - 'ENDER_PEARL:5:22'
+      - 'EXPERIENCE_BOTTLE:16:25'
+      - 'ENCHANTED_GOLDEN_APPLE:2:12'
+      - 'TOTEM_OF_UNDYING:1:8'
+      - 'NETHERITE_SCRAP:2:6'
+      - 'NETHERITE_INGOT:1:3'
+      - 'BEACON:1:1'                  # Legendary rare
+
+# Global settings
+settings:
+  # Whether to announce guard deaths to other online guards
+  announce-guard-deaths: true
+  
+  # Whether to drop experience orbs on guard death
+  drop-experience: true
+  experience-amount: 50  # Base XP, modified by rank
+  
+  # Whether guards can retrieve their original inventory from an NPC/command
+  allow-inventory-retrieval: true
+  retrieval-cost: 1000  # Cost in server currency
+  retrieval-time-limit: 1800  # 30 minutes to retrieve (seconds)
+  
+  # Debug mode for testing loot drops
+  debug-mode: false

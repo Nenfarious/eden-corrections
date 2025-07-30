@@ -126,6 +126,11 @@ public class MySQLHandler implements DatabaseHandler {
                 session_arrests INT NOT NULL DEFAULT 0,
                 session_kills INT NOT NULL DEFAULT 0,
                 session_detections INT NOT NULL DEFAULT 0,
+                penalty_start_time BIGINT NOT NULL DEFAULT 0,
+                current_penalty_stage INT NOT NULL DEFAULT 0,
+                last_penalty_time BIGINT NOT NULL DEFAULT 0,
+                last_slowness_application BIGINT NOT NULL DEFAULT 0,
+                has_active_penalty_boss_bar BOOLEAN NOT NULL DEFAULT FALSE,
                 wanted_level INT NOT NULL DEFAULT 0,
                 wanted_expire_time BIGINT NOT NULL DEFAULT 0,
                 wanted_reason TEXT,
@@ -160,6 +165,7 @@ public class MySQLHandler implements DatabaseHandler {
                 INDEX idx_chase_guard (guard_id),
                 INDEX idx_chase_target (target_id),
                 INDEX idx_chase_active (is_active),
+                INDEX idx_chase_cleanup (is_active, end_time),
                 INDEX idx_chase_created (created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
             """,
@@ -299,10 +305,12 @@ public class MySQLHandler implements DatabaseHandler {
                     player_id, player_name, is_on_duty, duty_start_time, off_duty_time, 
                     grace_debt_time, guard_rank, earned_off_duty_time, has_earned_base_time, 
                     has_been_notified_expired, session_searches, session_successful_searches, 
-                    session_arrests, session_kills, session_detections, wanted_level, 
-                    wanted_expire_time, wanted_reason, being_chased, chaser_guard, 
-                    chase_start_time, total_arrests, total_violations, total_duty_time, last_updated
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    session_arrests, session_kills, session_detections, penalty_start_time,
+                    current_penalty_stage, last_penalty_time, last_slowness_application,
+                    has_active_penalty_boss_bar, wanted_level, wanted_expire_time, wanted_reason, 
+                    being_chased, chaser_guard, chase_start_time, total_arrests, total_violations, 
+                    total_duty_time, last_updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     player_name = VALUES(player_name),
                     is_on_duty = VALUES(is_on_duty),
@@ -318,6 +326,11 @@ public class MySQLHandler implements DatabaseHandler {
                     session_arrests = VALUES(session_arrests),
                     session_kills = VALUES(session_kills),
                     session_detections = VALUES(session_detections),
+                    penalty_start_time = VALUES(penalty_start_time),
+                    current_penalty_stage = VALUES(current_penalty_stage),
+                    last_penalty_time = VALUES(last_penalty_time),
+                    last_slowness_application = VALUES(last_slowness_application),
+                    has_active_penalty_boss_bar = VALUES(has_active_penalty_boss_bar),
                     wanted_level = VALUES(wanted_level),
                     wanted_expire_time = VALUES(wanted_expire_time),
                     wanted_reason = VALUES(wanted_reason),
@@ -348,16 +361,21 @@ public class MySQLHandler implements DatabaseHandler {
                 stmt.setInt(13, playerData.getSessionArrests());
                 stmt.setInt(14, playerData.getSessionKills());
                 stmt.setInt(15, playerData.getSessionDetections());
-                stmt.setInt(16, playerData.getWantedLevel());
-                stmt.setLong(17, playerData.getWantedExpireTime());
-                stmt.setString(18, playerData.getWantedReason());
-                stmt.setBoolean(19, playerData.isBeingChased());
-                stmt.setString(20, playerData.getChaserGuard() != null ? playerData.getChaserGuard().toString() : null);
-                stmt.setLong(21, playerData.getChaseStartTime());
-                stmt.setInt(22, playerData.getTotalArrests());
-                stmt.setInt(23, playerData.getTotalViolations());
-                stmt.setLong(24, playerData.getTotalDutyTime());
-                stmt.setLong(25, System.currentTimeMillis());
+                stmt.setLong(16, playerData.getPenaltyStartTime());
+                stmt.setInt(17, playerData.getCurrentPenaltyStage());
+                stmt.setLong(18, playerData.getLastPenaltyTime());
+                stmt.setLong(19, playerData.getLastSlownessApplication());
+                stmt.setBoolean(20, playerData.hasActivePenaltyBossBar());
+                stmt.setInt(21, playerData.getWantedLevel());
+                stmt.setLong(22, playerData.getWantedExpireTime());
+                stmt.setString(23, playerData.getWantedReason());
+                stmt.setBoolean(24, playerData.isBeingChased());
+                stmt.setString(25, playerData.getChaserGuard() != null ? playerData.getChaserGuard().toString() : null);
+                stmt.setLong(26, playerData.getChaseStartTime());
+                stmt.setInt(27, playerData.getTotalArrests());
+                stmt.setInt(28, playerData.getTotalViolations());
+                stmt.setLong(29, playerData.getTotalDutyTime());
+                stmt.setLong(30, System.currentTimeMillis());
                 
                 stmt.executeUpdate();
             } catch (SQLException e) {
@@ -435,6 +453,13 @@ public class MySQLHandler implements DatabaseHandler {
         data.setSessionArrests(rs.getInt("session_arrests"));
         data.setSessionKills(rs.getInt("session_kills"));
         data.setSessionDetections(rs.getInt("session_detections"));
+        
+        // Set penalty tracking information
+        data.setPenaltyStartTime(rs.getLong("penalty_start_time"));
+        data.setCurrentPenaltyStage(rs.getInt("current_penalty_stage"));
+        data.setLastPenaltyTime(rs.getLong("last_penalty_time"));
+        data.setLastSlownessApplication(rs.getLong("last_slowness_application"));
+        data.setHasActivePenaltyBossBar(rs.getBoolean("has_active_penalty_boss_bar"));
         
         // Set wanted information
         data.setWantedLevel(rs.getInt("wanted_level"));
@@ -702,6 +727,33 @@ public class MySQLHandler implements DatabaseHandler {
                 logger.severe("Failed to delete player inventory for " + playerId + ": " + e.getMessage());
                 throw new RuntimeException(e);
             }
+        }, executor);
+    }
+    
+    @Override
+    public CompletableFuture<List<UUID>> getPlayersWithStoredInventory() {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT player_id FROM player_inventory_cache";
+            List<UUID> playerIds = new ArrayList<>();
+            
+            try (Connection connection = dataSource.getConnection();
+                 Statement stmt = connection.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+                
+                while (rs.next()) {
+                    try {
+                        UUID playerId = UUID.fromString(rs.getString("player_id"));
+                        playerIds.add(playerId);
+                    } catch (IllegalArgumentException e) {
+                        logger.warning("Invalid UUID in inventory cache: " + rs.getString("player_id"));
+                    }
+                }
+            } catch (SQLException e) {
+                logger.severe("Failed to get players with stored inventory: " + e.getMessage());
+                throw new RuntimeException(e);
+            }
+            
+            return playerIds;
         }, executor);
     }
     

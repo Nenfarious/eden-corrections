@@ -4,6 +4,7 @@ import dev.lsdmc.edenCorrections.EdenCorrections;
 import dev.lsdmc.edenCorrections.models.PlayerData;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.UUID;
 import java.util.logging.Logger;
@@ -15,6 +16,9 @@ public class WantedManager {
     
     private final EdenCorrections plugin;
     private final Logger logger;
+    
+    // Task tracking for cleanup
+    private BukkitTask monitoringTask;
     
     public WantedManager(EdenCorrections plugin) {
         this.plugin = plugin;
@@ -29,7 +33,7 @@ public class WantedManager {
     }
     
     private void startWantedMonitoring() {
-        new BukkitRunnable() {
+        monitoringTask = new BukkitRunnable() {
             @Override
             public void run() {
                 // Check for expired wanted levels
@@ -39,11 +43,10 @@ public class WantedManager {
     }
     
     public boolean setWantedLevel(Player target, int level, String reason) {
-        // Guard protection: Guards on duty cannot be set as wanted
-        if (plugin.getDutyManager().isOnDuty(target)) {
-            if (plugin.getConfigManager().isDebugMode()) {
-                logger.info("DEBUG: Attempted to set wanted level on guard on duty: " + target.getName());
-            }
+        // Check security restrictions
+        if (!plugin.getSecurityManager().canPlayerBeWanted(target)) {
+            plugin.getMessageManager().sendMessage(target, "security.guard-immunity.wanted-protected");
+            plugin.getSecurityManager().logSecurityViolation("set wanted level", null, target);
             return false;
         }
         
@@ -77,13 +80,32 @@ public class WantedManager {
         
         plugin.getDataManager().savePlayerData(data);
         
-        // Notify online players
+        // Notify online players and show boss bar
         if (targetPlayer != null) {
             plugin.getMessageManager().sendMessage(targetPlayer, "wanted.level.set",
                 numberPlaceholder("level", level),
                 starsPlaceholder("stars", level));
             plugin.getMessageManager().sendMessage(targetPlayer, "wanted.level.reason",
                 stringPlaceholder("reason", reason));
+            
+            // Show boss bar
+            plugin.getBossBarManager().showWantedBossBar(targetPlayer, level, plugin.getConfigManager().getWantedDuration());
+            
+            // Set UNT wanted level indicator if available
+                    if (plugin.getLuckPermsMetaManager() != null && plugin.getLuckPermsMetaManager().isAvailable()) {
+            plugin.getLuckPermsMetaManager().setWantedTag(targetPlayer, level, reason)
+                    .thenAccept(success -> {
+                        if (success) {
+                            logger.fine("Set UNT wanted indicator for " + targetPlayer.getName() + " (Level " + level + ")");
+                        } else {
+                            logger.warning("Failed to set UNT wanted indicator for " + targetPlayer.getName());
+                        }
+                    })
+                    .exceptionally(throwable -> {
+                        logger.warning("UNT wanted indicator error for " + targetPlayer.getName() + ": " + throwable.getMessage());
+                        return null;
+                    });
+            }
         }
         
         logger.info(targetName + "'s wanted level set to " + level + " - Reason: " + reason);
@@ -91,11 +113,10 @@ public class WantedManager {
     }
     
     public boolean increaseWantedLevel(Player target, int amount, String reason) {
-        // Guard protection: Guards on duty cannot have their wanted level increased
-        if (plugin.getDutyManager().isOnDuty(target)) {
-            if (plugin.getConfigManager().isDebugMode()) {
-                logger.info("DEBUG: Attempted to increase wanted level on guard on duty: " + target.getName());
-            }
+        // Check security restrictions
+        if (!plugin.getSecurityManager().canPlayerBeWanted(target)) {
+            plugin.getMessageManager().sendMessage(target, "security.guard-immunity.wanted-protected");
+            plugin.getSecurityManager().logSecurityViolation("increase wanted level", null, target);
             return false;
         }
         
@@ -134,12 +155,34 @@ public class WantedManager {
             return false;
         }
         
+        // Remove glow effect if player was wanted level 3+
+        Player targetPlayer = plugin.getServer().getPlayer(targetId);
+        if (targetPlayer != null && data.getWantedLevel() >= 3) {
+            targetPlayer.setGlowing(false);
+        }
+        
         data.clearWantedLevel();
         plugin.getDataManager().savePlayerData(data);
         
-        Player targetPlayer = plugin.getServer().getPlayer(targetId);
         if (targetPlayer != null) {
             plugin.getMessageManager().sendMessage(targetPlayer, "wanted.level.cleared");
+            plugin.getBossBarManager().hideBossBarByType(targetPlayer, "wanted");
+            
+            // Remove UNT wanted indicator if available
+                    if (plugin.getLuckPermsMetaManager() != null && plugin.getLuckPermsMetaManager().isAvailable()) {
+            plugin.getLuckPermsMetaManager().removeWantedTag(targetPlayer)
+                    .thenAccept(success -> {
+                        if (success) {
+                            logger.fine("Removed UNT wanted indicator from " + targetPlayer.getName());
+                        } else {
+                            logger.fine("No UNT wanted indicator to remove from " + targetPlayer.getName());
+                        }
+                    })
+                    .exceptionally(throwable -> {
+                        logger.warning("UNT wanted indicator removal error for " + targetPlayer.getName() + ": " + throwable.getMessage());
+                        return null;
+                    });
+            }
         }
         
         logger.info(data.getPlayerName() + "'s wanted level has been cleared");
@@ -221,5 +264,24 @@ public class WantedManager {
                 plugin.getMessageManager().sendGuardAlert(messageKey, placeholders);
             }
         }
+    }
+    
+    /**
+     * Clean up manager resources
+     */
+    public void cleanup() {
+        logger.info("Cleaning up WantedManager resources...");
+        
+        // Cancel monitoring task
+        if (monitoringTask != null && !monitoringTask.isCancelled()) {
+            try {
+                monitoringTask.cancel();
+                logger.info("Cancelled wanted level monitoring task");
+            } catch (Exception e) {
+                logger.warning("Error cancelling wanted monitoring task: " + e.getMessage());
+            }
+        }
+        
+        logger.info("WantedManager cleanup completed");
     }
 } 
