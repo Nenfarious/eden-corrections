@@ -129,12 +129,14 @@ public class DutyManager {
             return;
         }
         
-        // CRITICAL FIX: Only calculate time since off duty for current online session
-        // This prevents offline time from being counted against the player
-        long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
+        // CRITICAL FIX: Only count online time against earned time, not total time including offline
+        long onlineTimeUsed = data.getOnlineTimeUsedSinceOffDuty();
         long earnedTime = data.getEarnedOffDutyTime();
         
-        if (timeSinceOffDuty > earnedTime) {
+        // For debugging - still track total time for logging purposes
+        long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
+        
+        if (onlineTimeUsed > earnedTime) {
             // They've used up their earned off-duty time - apply escalating penalties
             
             // Safeguard: If they've been off duty for an extremely long time (more than 30 days),
@@ -160,8 +162,8 @@ public class DutyManager {
                 // Start penalty tracking only if not already active
                 if (!data.isPenaltyTrackingActive()) {
                     data.initializePenaltyTracking();
-                    // Set the penalty start time to when they actually exceeded their earned time
-                    data.setPenaltyStartTime(data.getOffDutyTime() + earnedTime);
+                    // Set penalty start time to current time (when they exceeded their earned time while online)
+                    data.setPenaltyStartTime(System.currentTimeMillis());
                     // Mark player as online to start fresh penalty tracking
                     data.markAsOnline();
                     plugin.getDataManager().savePlayerData(data);

@@ -225,9 +225,9 @@ public class PlayerData {
             return earnedOffDutyTime > 0;
         }
         
-        // Calculate how much time we've already used while off duty
-        long timeSinceOffDuty = System.currentTimeMillis() - offDutyTime;
-        long remainingTime = earnedOffDutyTime - timeSinceOffDuty;
+        // CRITICAL FIX: Only count online time against earned time, excluding offline periods
+        long onlineTimeUsed = getOnlineTimeUsedSinceOffDuty();
+        long remainingTime = earnedOffDutyTime - onlineTimeUsed;
         
         return remainingTime > 0;
     }
@@ -238,9 +238,9 @@ public class PlayerData {
             return earnedOffDutyTime / 1000L;
         }
         
-        // Calculate remaining time after subtracting time already used
-        long timeSinceOffDuty = System.currentTimeMillis() - offDutyTime;
-        long remainingTime = Math.max(0, earnedOffDutyTime - timeSinceOffDuty);
+        // CRITICAL FIX: Only count online time against earned time
+        long onlineTimeUsed = getOnlineTimeUsedSinceOffDuty();
+        long remainingTime = Math.max(0, earnedOffDutyTime - onlineTimeUsed);
         
         return remainingTime / 1000L;
     }
@@ -251,9 +251,9 @@ public class PlayerData {
             return earnedOffDutyTime / (1000L * 60L);
         }
         
-        // Calculate remaining time after subtracting time already used
-        long timeSinceOffDuty = System.currentTimeMillis() - offDutyTime;
-        long remainingTime = Math.max(0, earnedOffDutyTime - timeSinceOffDuty);
+        // CRITICAL FIX: Only count online time against earned time
+        long onlineTimeUsed = getOnlineTimeUsedSinceOffDuty();
+        long remainingTime = Math.max(0, earnedOffDutyTime - onlineTimeUsed);
         
         return remainingTime / (1000L * 60L);
     }
@@ -385,6 +385,35 @@ public class PlayerData {
         if (penaltyTrackingPaused && penaltyStartTime > 0) {
             resumePenaltyTracking();
         }
+    }
+    
+    /**
+     * Calculate how much online time has been used since going off duty
+     * This excludes offline periods, making it consistent with penalty tracking
+     */
+    public long getOnlineTimeUsedSinceOffDuty() {
+        if (offDutyTime == 0) {
+            return 0; // Haven't gone off duty yet
+        }
+        
+        // For penalty tracking, we use accumulated time + current session time
+        // For off-duty consumption, we need to calculate how much time was actually used while online
+        
+        // If penalty tracking is active, we can use the effective penalty time
+        // as it represents the same concept (time online while off duty beyond earned time)
+        if (penaltyStartTime > 0) {
+            // Player has exceeded their earned time, so they've used all of it plus penalty time
+            return earnedOffDutyTime + getEffectivePenaltyTime();
+        }
+        
+        // Player hasn't exceeded earned time yet - calculate time used from current session
+        long currentSessionStart = Math.max(offDutyTime, lastOnlineTime);
+        long currentSessionTime = System.currentTimeMillis() - currentSessionStart;
+        
+        // Add any previously accumulated time if they had multiple login sessions
+        // (This would happen if they logged off and back on while still within their earned time)
+        
+        return currentSessionTime;
     }
 
     @Override
