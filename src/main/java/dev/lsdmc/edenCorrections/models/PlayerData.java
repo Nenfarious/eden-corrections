@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 package dev.lsdmc.edenCorrections.models;
 
 import java.util.UUID;
@@ -33,6 +32,11 @@ public class PlayerData {
     private long lastPenaltyTime = 0;          // Last time a penalty was applied
     private long lastSlownessApplication = 0;  // Last time slowness effect was applied
     private boolean hasActivePenaltyBossBar = false; // Track if penalty boss bar is active
+    
+    // === NEW: OFFLINE PENALTY TRACKING ===
+    private long accumulatedPenaltyTime = 0;   // Total penalty time accumulated while online
+    private long lastOnlineTime = 0;           // When player was last online (for pausing penalty tracking)
+    private boolean penaltyTrackingPaused = false; // Whether penalty tracking is paused due to being offline
 
     // === WANTED SYSTEM DATA ===
     private int wantedLevel;
@@ -67,6 +71,9 @@ public class PlayerData {
         this.sessionArrests = 0;
         this.sessionKills = 0;
         this.sessionDetections = 0;
+        this.accumulatedPenaltyTime = 0;
+        this.lastOnlineTime = System.currentTimeMillis();
+        this.penaltyTrackingPaused = false;
         this.wantedLevel = 0;
         this.wantedExpireTime = 0;
         this.wantedReason = "";
@@ -112,6 +119,11 @@ public class PlayerData {
     public long getLastPenaltyTime() { return lastPenaltyTime; }
     public long getLastSlownessApplication() { return lastSlownessApplication; }
     public boolean hasActivePenaltyBossBar() { return hasActivePenaltyBossBar; }
+    
+    // === NEW: OFFLINE PENALTY TRACKING GETTERS ===
+    public long getAccumulatedPenaltyTime() { return accumulatedPenaltyTime; }
+    public long getLastOnlineTime() { return lastOnlineTime; }
+    public boolean isPenaltyTrackingPaused() { return penaltyTrackingPaused; }
 
     // === SETTERS ===
     public void setOnDuty(boolean onDuty) { this.isOnDuty = onDuty; }
@@ -145,6 +157,11 @@ public class PlayerData {
     public void setLastPenaltyTime(long lastPenaltyTime) { this.lastPenaltyTime = lastPenaltyTime; }
     public void setLastSlownessApplication(long lastSlownessApplication) { this.lastSlownessApplication = lastSlownessApplication; }
     public void setHasActivePenaltyBossBar(boolean hasActivePenaltyBossBar) { this.hasActivePenaltyBossBar = hasActivePenaltyBossBar; }
+    
+    // === NEW: OFFLINE PENALTY TRACKING SETTERS ===
+    public void setAccumulatedPenaltyTime(long accumulatedPenaltyTime) { this.accumulatedPenaltyTime = accumulatedPenaltyTime; }
+    public void setLastOnlineTime(long lastOnlineTime) { this.lastOnlineTime = lastOnlineTime; }
+    public void setPenaltyTrackingPaused(boolean penaltyTrackingPaused) { this.penaltyTrackingPaused = penaltyTrackingPaused; }
 
     // === UTILITY METHODS ===
     public boolean isWanted() {
@@ -279,6 +296,8 @@ public class PlayerData {
         this.lastPenaltyTime = 0;
         this.lastSlownessApplication = 0;
         this.hasActivePenaltyBossBar = false;
+        this.accumulatedPenaltyTime = 0;
+        this.penaltyTrackingPaused = false;
     }
     
     public void clearPenaltyTracking() {
@@ -287,10 +306,12 @@ public class PlayerData {
         this.lastPenaltyTime = 0;
         this.lastSlownessApplication = 0;
         this.hasActivePenaltyBossBar = false;
+        this.accumulatedPenaltyTime = 0;
+        this.penaltyTrackingPaused = false;
     }
     
     public boolean isPenaltyTrackingActive() {
-        return penaltyStartTime > 0 && currentPenaltyStage >= 0;
+        return penaltyStartTime > 0 && currentPenaltyStage >= 0 && !penaltyTrackingPaused;
     }
     
     public long getTimeSincePenaltyStart() {
@@ -305,6 +326,66 @@ public class PlayerData {
         this.currentPenaltyStage++;
         this.lastPenaltyTime = System.currentTimeMillis();
     }
+    
+    // === NEW: OFFLINE PENALTY TRACKING UTILITY METHODS ===
+    
+    /**
+     * Pause penalty tracking when player goes offline - accumulates current penalty time
+     */
+    public void pausePenaltyTracking() {
+        if (isPenaltyTrackingActive()) {
+            // Accumulate the penalty time earned while online
+            long currentSessionPenaltyTime = System.currentTimeMillis() - Math.max(penaltyStartTime, lastOnlineTime);
+            this.accumulatedPenaltyTime += currentSessionPenaltyTime;
+            this.penaltyTrackingPaused = true;
+            
+            if (currentSessionPenaltyTime > 0) {
+                // Debug info will be logged by the calling method
+            }
+        }
+    }
+    
+    /**
+     * Resume penalty tracking when player comes back online
+     */
+    public void resumePenaltyTracking() {
+        if (penaltyTrackingPaused && penaltyStartTime > 0) {
+            this.penaltyTrackingPaused = false;
+            this.lastOnlineTime = System.currentTimeMillis();
+            // Don't reset penaltyStartTime - we want to keep the accumulated time
+        }
+    }
+    
+    /**
+     * Get total effective penalty time (accumulated + current session if online)
+     */
+    public long getEffectivePenaltyTime() {
+        if (penaltyStartTime == 0) {
+            return 0;
+        }
+        
+        long totalPenaltyTime = accumulatedPenaltyTime;
+        
+        // Add current session time if player is online and penalty tracking is active
+        if (!penaltyTrackingPaused) {
+            long currentSessionStart = Math.max(penaltyStartTime, lastOnlineTime);
+            long currentSessionPenaltyTime = System.currentTimeMillis() - currentSessionStart;
+            totalPenaltyTime += currentSessionPenaltyTime;
+        }
+        
+        return totalPenaltyTime;
+    }
+    
+    /**
+     * Mark player as online (for penalty tracking purposes)
+     */
+    public void markAsOnline() {
+        this.lastOnlineTime = System.currentTimeMillis();
+        // If they were offline and had penalty tracking active, resume it
+        if (penaltyTrackingPaused && penaltyStartTime > 0) {
+            resumePenaltyTracking();
+        }
+    }
 
     @Override
     public String toString() {
@@ -317,5 +398,6 @@ public class PlayerData {
                 ", beingChased=" + beingChased +
                 '}';
     }
+}
 
  
