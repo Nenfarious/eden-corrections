@@ -129,10 +129,14 @@ public class DutyManager {
             return;
         }
         
-        long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
+        // CRITICAL FIX: Only count online time against earned time, not total time including offline
+        long onlineTimeUsed = data.getOnlineTimeUsedSinceOffDuty();
         long earnedTime = data.getEarnedOffDutyTime();
         
-        if (timeSinceOffDuty > earnedTime) {
+        // For debugging - still track total time for logging purposes
+        long timeSinceOffDuty = System.currentTimeMillis() - data.getOffDutyTime();
+        
+        if (onlineTimeUsed > earnedTime) {
             // They've used up their earned off-duty time - apply escalating penalties
             
             // Safeguard: If they've been off duty for an extremely long time (more than 30 days),
@@ -158,8 +162,10 @@ public class DutyManager {
                 // Start penalty tracking only if not already active
                 if (!data.isPenaltyTrackingActive()) {
                     data.initializePenaltyTracking();
-                    // Set the penalty start time to when they actually exceeded their earned time
-                    data.setPenaltyStartTime(data.getOffDutyTime() + earnedTime);
+                    // Set penalty start time to current time (when they exceeded their earned time while online)
+                    data.setPenaltyStartTime(System.currentTimeMillis());
+                    // Mark player as online to start fresh penalty tracking
+                    data.markAsOnline();
                     plugin.getDataManager().savePlayerData(data);
                     logger.info(player.getName() + " has used up their earned off-duty time - penalty tracking initiated");
                 }
@@ -167,25 +173,8 @@ public class DutyManager {
             
             // Apply escalating penalties if system is enabled
             if (plugin.getConfigManager().isPenaltyEscalationEnabled()) {
-                // CRITICAL FIX: Calculate overrun time from when penalties should have started
-                // not from when they went off duty
-                long penaltyStartTime = data.getPenaltyStartTime();
-                long currentTime = System.currentTimeMillis();
-                long overrunTime = currentTime - penaltyStartTime;
-                
-                // Safeguard: If penalty tracking was reset but player has been off duty for too long,
-                // cap the overrun time to a reasonable maximum
-                if (penaltyStartTime == 0 || overrunTime < 0) {
-                    // Recalculate penalty start time
-                    penaltyStartTime = data.getOffDutyTime() + earnedTime;
-                    overrunTime = currentTime - penaltyStartTime;
-                    data.setPenaltyStartTime(penaltyStartTime);
-                    
-                    if (plugin.getConfigManager().isDebugMode()) {
-                        logger.info("Recalculated penalty start time for " + player.getName() + 
-                                   " to " + penaltyStartTime);
-                    }
-                }
+                // CRITICAL FIX: Use effective penalty time that excludes offline periods
+                long overrunTime = data.getEffectivePenaltyTime();
                 
                 // Cap overrun time to prevent extreme values
                 long maxReasonableOverrun = 7 * 24 * 60 * 60 * 1000L; // 7 days in milliseconds
@@ -196,15 +185,14 @@ public class DutyManager {
                     overrunTime = maxReasonableOverrun;
                 }
                 
-                // Add debugging for extreme values
-                if (overrunTime > 24 * 60 * 60 * 1000L) { // More than 24 hours
-                    logger.warning("Extreme overrun time detected for " + player.getName() + 
-                                 ": " + (overrunTime / (60 * 1000L)) + " minutes (" + 
-                                 (overrunTime / (24 * 60 * 60 * 1000L)) + " days)");
-                    logger.warning("  penaltyStartTime: " + penaltyStartTime);
-                    logger.warning("  currentTime: " + currentTime);
-                    logger.warning("  timeSinceOffDuty: " + (timeSinceOffDuty / (60 * 1000L)) + " minutes");
-                    logger.warning("  earnedTime: " + (earnedTime / (60 * 1000L)) + " minutes");
+                // Add debugging for tracking
+                if (plugin.getConfigManager().isDebugMode()) {
+                    logger.info("Penalty calculation for " + player.getName() + ":");
+                    logger.info("  Effective overrun time: " + (overrunTime / (60 * 1000L)) + " minutes (excludes offline time)");
+                    logger.info("  Accumulated penalty time: " + (data.getAccumulatedPenaltyTime() / (60 * 1000L)) + " minutes");
+                    logger.info("  Penalty tracking paused: " + data.isPenaltyTrackingPaused());
+                    logger.info("  Time since off duty (total): " + (timeSinceOffDuty / (60 * 1000L)) + " minutes");
+                    logger.info("  Earned time: " + (earnedTime / (60 * 1000L)) + " minutes");
                 }
                 
                 applyEscalatingPenalties(player, data, overrunTime);
@@ -321,7 +309,7 @@ public class DutyManager {
             plugin.getDataManager().savePlayerData(data);
             
             // Update boss bar only when stage changes
-            updatePenaltyBossBar(player, data, overrunMinutes);
+            updatePenaltyBossBar(player, data, overrunTime);
             data.setHasActivePenaltyBossBar(true);
             
             logger.info("Applied penalty stage " + nextStage + " to " + player.getName() + 
@@ -435,10 +423,13 @@ public class DutyManager {
     /**
      * Update or show penalty boss bar using existing BossBarManager
      */
-    private void updatePenaltyBossBar(Player player, PlayerData data, long overrunMinutes) {
+    private void updatePenaltyBossBar(Player player, PlayerData data, long overrunTime) {
         if (!plugin.getConfigManager().isPenaltyBossBarEnabled()) {
             return;
         }
+        
+        // Convert effective penalty time to minutes for display
+        long overrunMinutes = overrunTime / (60 * 1000L);
         
         // Use the new penalty boss bar method
         plugin.getBossBarManager().showPenaltyBossBar(player, data.getCurrentPenaltyStage(), overrunMinutes);
@@ -1450,6 +1441,8 @@ public class DutyManager {
         // Cancel any active duty transition
         cancelDutyTransition(player, null);
         
+        PlayerData data = plugin.getDataManager().getPlayerData(player.getUniqueId());
+        
         // Remove guard tag if player is on duty
         if (isOnDuty(player)) {
             plugin.getGuardTagManager().removeGuardTag(player);
@@ -1469,5 +1462,8 @@ public class DutyManager {
                 restorePlayerInventory(player);
             }
         }
+        
+        // NOTE: Penalty tracking is already handled in GuardEventHandler.onPlayerQuit
+        // We don't need to pause it here as that would duplicate the logic
     }
 } 

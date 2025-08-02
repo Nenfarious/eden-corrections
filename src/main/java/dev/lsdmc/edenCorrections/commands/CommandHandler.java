@@ -623,7 +623,7 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
     private boolean handleDutyAdminCommand(CommandSender sender, String[] args) {
         if (args.length < 2) {
             plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
-                stringPlaceholder("command", "/corrections duty <list> [args...]"));
+                stringPlaceholder("command", "/corrections duty <list|time|penalties> [args...]"));
             return true;
         }
         
@@ -632,6 +632,10 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
         switch (action) {
             case "list":
                 return handleDutyList(sender, args);
+            case "time":
+                return handleDutyTimeAdmin(sender, args);
+            case "penalties":
+                return handleDutyPenaltiesAdmin(sender, args);
             default:
                 plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
                     stringPlaceholder("subcommand", action));
@@ -647,15 +651,231 @@ public class CommandHandler implements CommandExecutor, TabCompleter {
                 PlayerData data = plugin.getDataManager().getPlayerData(player.getUniqueId());
                 if (data != null) {
                     if (data.isOnDuty()) {
+                        long dutyMinutes = (System.currentTimeMillis() - data.getDutyStartTime()) / (60 * 1000L);
                         plugin.getMessageManager().sendMessage(sender, "admin.duty.list-on-duty",
-                            stringPlaceholder("player", player.getName()));
+                            stringPlaceholder("player", player.getName()),
+                            numberPlaceholder("minutes", dutyMinutes));
                     } else {
+                        long availableMinutes = data.getAvailableOffDutyTimeInMinutes();
                         plugin.getMessageManager().sendMessage(sender, "admin.duty.list-off-duty",
-                            stringPlaceholder("player", player.getName()));
+                            stringPlaceholder("player", player.getName()),
+                            numberPlaceholder("available_time", availableMinutes));
                     }
                 }
             }
         }
+        return true;
+    }
+    
+    private boolean handleDutyTimeAdmin(CommandSender sender, String[] args) {
+        // /corrections duty time <player> <check|add|remove|set|reset> [amount]
+        if (args.length < 4) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections duty time <player> <check|add|remove|set|reset> [minutes]"));
+            return true;
+        }
+        
+        String playerName = args[2];
+        String action = args[3].toLowerCase();
+        
+        Player target = Bukkit.getPlayer(playerName);
+        if (target == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        if (!plugin.getDutyManager().hasGuardPermission(target)) {
+            plugin.getMessageManager().sendMessage(sender, "admin.duty.not-guard",
+                stringPlaceholder("player", target.getName()));
+            return true;
+        }
+        
+        PlayerData data = plugin.getDataManager().getPlayerData(target.getUniqueId());
+        if (data == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.failed");
+            return true;
+        }
+        
+        switch (action) {
+            case "check":
+                return handleDutyTimeCheck(sender, target, data);
+            case "add":
+                return handleDutyTimeModify(sender, target, data, args, true, false);
+            case "remove":
+                return handleDutyTimeModify(sender, target, data, args, false, false);
+            case "set":
+                return handleDutyTimeModify(sender, target, data, args, true, true);
+            case "reset":
+                return handleDutyTimeReset(sender, target, data);
+            default:
+                plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
+                    stringPlaceholder("subcommand", action));
+                return true;
+        }
+    }
+    
+    private boolean handleDutyTimeCheck(CommandSender sender, Player target, PlayerData data) {
+        long earnedMinutes = data.getEarnedOffDutyTime() / (60 * 1000L);
+        long availableMinutes = data.getAvailableOffDutyTimeInMinutes();
+        long usedMinutes = earnedMinutes - availableMinutes;
+        
+        plugin.getMessageManager().sendMessage(sender, "admin.duty.time-check",
+            stringPlaceholder("player", target.getName()),
+            numberPlaceholder("earned", earnedMinutes),
+            numberPlaceholder("available", availableMinutes),
+            numberPlaceholder("used", usedMinutes),
+            stringPlaceholder("status", data.isOnDuty() ? "On Duty" : "Off Duty"));
+            
+        return true;
+    }
+    
+    private boolean handleDutyTimeModify(CommandSender sender, Player target, PlayerData data, String[] args, boolean isAdd, boolean isSet) {
+        if (args.length < 5) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections duty time " + target.getName() + " " + args[3] + " <minutes>"));
+            return true;
+        }
+        
+        int minutes;
+        try {
+            minutes = Integer.parseInt(args[4]);
+            if (minutes < 0) {
+                plugin.getMessageManager().sendMessage(sender, "universal.invalid-number");
+                return true;
+            }
+        } catch (NumberFormatException e) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-number");
+            return true;
+        }
+        
+        long milliseconds = minutes * 60L * 1000L;
+        long oldTime = data.getEarnedOffDutyTime();
+        
+        if (isSet) {
+            data.setEarnedOffDutyTime(milliseconds);
+        } else if (isAdd) {
+            data.addEarnedOffDutyTime(milliseconds);
+        } else {
+            // Remove
+            data.setEarnedOffDutyTime(Math.max(0, oldTime - milliseconds));
+        }
+        
+        plugin.getDataManager().savePlayerData(data);
+        
+        String actionWord = isSet ? "set to" : (isAdd ? "added" : "removed");
+        plugin.getMessageManager().sendMessage(sender, "admin.duty.time-modified",
+            stringPlaceholder("player", target.getName()),
+            stringPlaceholder("action", actionWord),
+            numberPlaceholder("minutes", minutes),
+            numberPlaceholder("new_total", data.getEarnedOffDutyTime() / (60 * 1000L)));
+            
+        // Notify the target player
+        plugin.getMessageManager().sendMessage(target, "admin.duty.time-modified-notify",
+            stringPlaceholder("action", actionWord),
+            numberPlaceholder("minutes", minutes),
+            numberPlaceholder("new_total", data.getEarnedOffDutyTime() / (60 * 1000L)));
+            
+        return true;
+    }
+    
+    private boolean handleDutyTimeReset(CommandSender sender, Player target, PlayerData data) {
+        data.setEarnedOffDutyTime(0);
+        data.clearPenaltyTracking();
+        plugin.getDataManager().savePlayerData(data);
+        
+        plugin.getMessageManager().sendMessage(sender, "admin.duty.time-reset",
+            stringPlaceholder("player", target.getName()));
+            
+        plugin.getMessageManager().sendMessage(target, "admin.duty.time-reset-notify");
+        
+        return true;
+    }
+    
+    private boolean handleDutyPenaltiesAdmin(CommandSender sender, String[] args) {
+        // /corrections duty penalties <player> <check|clear>
+        if (args.length < 4) {
+            plugin.getMessageManager().sendMessage(sender, "universal.invalid-usage",
+                stringPlaceholder("command", "/corrections duty penalties <player> <check|clear>"));
+            return true;
+        }
+        
+        String playerName = args[2];
+        String action = args[3].toLowerCase();
+        
+        Player target = Bukkit.getPlayer(playerName);
+        if (target == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.player-not-found",
+                stringPlaceholder("player", playerName));
+            return true;
+        }
+        
+        PlayerData data = plugin.getDataManager().getPlayerData(target.getUniqueId());
+        if (data == null) {
+            plugin.getMessageManager().sendMessage(sender, "universal.failed");
+            return true;
+        }
+        
+        switch (action) {
+            case "check":
+                return handlePenaltiesCheck(sender, target, data);
+            case "clear":
+                return handlePenaltiesClear(sender, target, data);
+            default:
+                plugin.getMessageManager().sendMessage(sender, "universal.unknown-subcommand",
+                    stringPlaceholder("subcommand", action));
+                return true;
+        }
+    }
+    
+    private boolean handlePenaltiesCheck(CommandSender sender, Player target, PlayerData data) {
+        if (!data.isPenaltyTrackingActive() && data.getCurrentPenaltyStage() == 0) {
+            plugin.getMessageManager().sendMessage(sender, "admin.duty.penalties-none",
+                stringPlaceholder("player", target.getName()));
+            return true;
+        }
+        
+        long effectivePenaltyMinutes = data.getEffectivePenaltyTime() / (60 * 1000L);
+        long accumulatedMinutes = data.getAccumulatedPenaltyTime() / (60 * 1000L);
+        
+        plugin.getMessageManager().sendMessage(sender, "admin.duty.penalties-check",
+            stringPlaceholder("player", target.getName()),
+            numberPlaceholder("stage", data.getCurrentPenaltyStage()),
+            numberPlaceholder("effective_time", effectivePenaltyMinutes),
+            numberPlaceholder("accumulated_time", accumulatedMinutes),
+            stringPlaceholder("paused", data.isPenaltyTrackingPaused() ? "Yes" : "No"));
+            
+        return true;
+    }
+    
+    private boolean handlePenaltiesClear(CommandSender sender, Player target, PlayerData data) {
+        // Clear all penalty effects
+        target.removePotionEffect(org.bukkit.potion.PotionEffectType.SLOWNESS);
+        
+        // Hide penalty boss bar
+        if (data.hasActivePenaltyBossBar()) {
+            plugin.getBossBarManager().hideBossBarByType(target, "penalty");
+        }
+        
+        // Clear penalty tracking
+        data.clearPenaltyTracking();
+        data.setHasBeenNotifiedOfExpiredTime(false);
+        
+        // Give them a bonus of earned time if configured
+        int bonusMinutes = plugin.getConfigManager().getPenaltyBypassEarnedTimeBonus();
+        if (bonusMinutes > 0) {
+            data.addEarnedOffDutyTime(bonusMinutes * 60L * 1000L);
+        }
+        
+        plugin.getDataManager().savePlayerData(data);
+        
+        plugin.getMessageManager().sendMessage(sender, "admin.duty.penalties-cleared",
+            stringPlaceholder("player", target.getName()),
+            numberPlaceholder("bonus_minutes", bonusMinutes));
+            
+        plugin.getMessageManager().sendMessage(target, "admin.duty.penalties-cleared-notify",
+            numberPlaceholder("bonus_minutes", bonusMinutes));
+            
         return true;
     }
     

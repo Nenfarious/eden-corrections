@@ -116,6 +116,9 @@ public class SQLiteHandler implements DatabaseHandler {
                 last_penalty_time INTEGER NOT NULL DEFAULT 0,
                 last_slowness_application INTEGER NOT NULL DEFAULT 0,
                 has_active_penalty_boss_bar INTEGER NOT NULL DEFAULT 0,
+                accumulated_penalty_time INTEGER NOT NULL DEFAULT 0,
+                last_online_time INTEGER NOT NULL DEFAULT 0,
+                penalty_tracking_paused INTEGER NOT NULL DEFAULT 0,
                 wanted_level INTEGER NOT NULL DEFAULT 0,
                 wanted_expire_time INTEGER NOT NULL DEFAULT 0,
                 wanted_reason TEXT,
@@ -321,10 +324,11 @@ public class SQLiteHandler implements DatabaseHandler {
                     has_been_notified_expired, session_searches, session_successful_searches, 
                     session_arrests, session_kills, session_detections, penalty_start_time,
                     current_penalty_stage, last_penalty_time, last_slowness_application,
-                    has_active_penalty_boss_bar, wanted_level, wanted_expire_time, wanted_reason, 
+                    has_active_penalty_boss_bar, accumulated_penalty_time, last_online_time,
+                    penalty_tracking_paused, wanted_level, wanted_expire_time, wanted_reason, 
                     being_chased, chaser_guard, chase_start_time, total_arrests, total_violations, 
                     total_duty_time, last_updated
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """;
             
             try {
@@ -350,16 +354,19 @@ public class SQLiteHandler implements DatabaseHandler {
                     stmt.setLong(18, playerData.getLastPenaltyTime());
                     stmt.setLong(19, playerData.getLastSlownessApplication());
                     stmt.setInt(20, playerData.hasActivePenaltyBossBar() ? 1 : 0);
-                    stmt.setInt(21, playerData.getWantedLevel());
-                    stmt.setLong(22, playerData.getWantedExpireTime());
-                    stmt.setString(23, playerData.getWantedReason());
-                    stmt.setInt(24, playerData.isBeingChased() ? 1 : 0);
-                    stmt.setString(25, playerData.getChaserGuard() != null ? playerData.getChaserGuard().toString() : null);
-                    stmt.setLong(26, playerData.getChaseStartTime());
-                    stmt.setInt(27, playerData.getTotalArrests());
-                    stmt.setInt(28, playerData.getTotalViolations());
-                    stmt.setLong(29, playerData.getTotalDutyTime());
-                    stmt.setLong(30, System.currentTimeMillis());
+                    stmt.setLong(21, playerData.getAccumulatedPenaltyTime());
+                    stmt.setLong(22, playerData.getLastOnlineTime());
+                    stmt.setInt(23, playerData.isPenaltyTrackingPaused() ? 1 : 0);
+                    stmt.setInt(24, playerData.getWantedLevel());
+                    stmt.setLong(25, playerData.getWantedExpireTime());
+                    stmt.setString(26, playerData.getWantedReason());
+                    stmt.setInt(27, playerData.isBeingChased() ? 1 : 0);
+                    stmt.setString(28, playerData.getChaserGuard() != null ? playerData.getChaserGuard().toString() : null);
+                    stmt.setLong(29, playerData.getChaseStartTime());
+                    stmt.setInt(30, playerData.getTotalArrests());
+                    stmt.setInt(31, playerData.getTotalViolations());
+                    stmt.setLong(32, playerData.getTotalDutyTime());
+                    stmt.setLong(33, System.currentTimeMillis());
                     
                     stmt.executeUpdate();
                 }
@@ -444,6 +451,11 @@ public class SQLiteHandler implements DatabaseHandler {
         data.setLastPenaltyTime(rs.getLong("last_penalty_time"));
         data.setLastSlownessApplication(rs.getLong("last_slowness_application"));
         data.setHasActivePenaltyBossBar(rs.getInt("has_active_penalty_boss_bar") == 1);
+        
+        // Set offline penalty tracking information
+        data.setAccumulatedPenaltyTime(rs.getLong("accumulated_penalty_time"));
+        data.setLastOnlineTime(rs.getLong("last_online_time"));
+        data.setPenaltyTrackingPaused(rs.getInt("penalty_tracking_paused") == 1);
         
         // Set wanted information
         data.setWantedLevel(rs.getInt("wanted_level"));

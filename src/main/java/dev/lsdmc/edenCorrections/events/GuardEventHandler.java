@@ -51,6 +51,19 @@ public class GuardEventHandler implements Listener {
         // Initialize or load player data
         PlayerData data = plugin.getDataManager().getOrCreatePlayerData(player.getUniqueId(), player.getName());
         
+        // CRITICAL FIX: Resume penalty tracking for players coming back online
+        if (data.isPenaltyTrackingPaused() && data.getPenaltyStartTime() > 0) {
+            data.markAsOnline(); // This will resume penalty tracking
+            
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: Resumed penalty tracking for " + player.getName() + 
+                           " on login (accumulated: " + (data.getAccumulatedPenaltyTime() / (60 * 1000L)) + " minutes)");
+            }
+        } else {
+            // Mark player as online for tracking purposes
+            data.markAsOnline();
+        }
+        
         // Check for expired wanted levels
         if (data.hasExpiredWanted()) {
             data.clearWantedLevel();
@@ -62,6 +75,25 @@ public class GuardEventHandler implements Listener {
         
         // Restore guard tag if player was on duty before restart
         plugin.getGuardTagManager().restoreGuardTagOnJoin(player);
+        
+        // Apply any existing penalty effects if player has active penalties
+        if (data.isPenaltyTrackingActive() && !data.isOnDuty()) {
+            // Re-apply slowness effect if they had penalties
+            if (data.getCurrentPenaltyStage() > 0) {
+                int slownessLevel = getSlownessLevelForStage(data.getCurrentPenaltyStage());
+                if (slownessLevel > 0) {
+                    player.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                        org.bukkit.potion.PotionEffectType.SLOWNESS, 
+                        Integer.MAX_VALUE, 
+                        slownessLevel - 1
+                    ));
+                    
+                    if (plugin.getConfigManager().isDebugMode()) {
+                        logger.info("DEBUG: Re-applied slowness " + slownessLevel + " to " + player.getName() + " on login");
+                    }
+                }
+            }
+        }
         
         if (plugin.getConfigManager().isDebugMode()) {
             logger.info("Player " + player.getName() + " joined - Data loaded/created");
@@ -110,10 +142,26 @@ public class GuardEventHandler implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         
+        // Get player data first to handle penalty tracking for all players
+        PlayerData data = plugin.getDataManager().getPlayerData(player.getUniqueId());
+        
+        // CRITICAL FIX: Pause penalty tracking for any player going offline
+        if (data != null && data.isPenaltyTrackingActive()) {
+            data.pausePenaltyTracking();
+            
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: Paused penalty tracking for " + player.getName() + 
+                           " on logout (accumulated: " + (data.getAccumulatedPenaltyTime() / (60 * 1000L)) + " minutes)");
+            }
+        }
+        
         // Handle guards going off duty automatically on logout to prevent inventory/kit inconsistencies
         if (plugin.getDutyManager().hasGuardPermission(player) && plugin.getDutyManager().isOnDuty(player)) {
-            PlayerData data = plugin.getDataManager().getPlayerData(player.getUniqueId());
             if (data != null) {
+                // Calculate duty time before going off duty
+                long dutyTime = System.currentTimeMillis() - data.getDutyStartTime();
+                data.addDutyTime(dutyTime);
+                
                 // Force guard off duty on logout
                 data.setOnDuty(false);
                 data.setOffDutyTime(System.currentTimeMillis());
@@ -127,10 +175,13 @@ public class GuardEventHandler implements Listener {
                 // Restore their original inventory (removes guard kit)
                 plugin.getDutyManager().restorePlayerInventoryPublic(player);
                 
-                logger.info("Automatically set guard " + player.getName() + " to off duty on logout");
-                
-                // Save the updated data immediately
-                plugin.getDataManager().savePlayerData(data);
+                logger.info("Automatically set guard " + player.getName() + " to off duty on logout after " + 
+                           (dutyTime / 1000) + " seconds of duty");
+            }
+        } else if (data != null && !data.isOnDuty() && data.isPenaltyTrackingActive()) {
+            // For off-duty players with active penalty tracking, just pause it
+            if (plugin.getConfigManager().isDebugMode()) {
+                logger.info("DEBUG: " + player.getName() + " logged off while off-duty with active penalties - tracking paused");
             }
         }
         
@@ -183,6 +234,20 @@ public class GuardEventHandler implements Listener {
         
         // Clean up message system (action bars)
         plugin.getMessageManager().cleanupPlayer(player);
+    }
+    
+    /**
+     * Helper method to get the appropriate slowness level for a penalty stage
+     */
+    private int getSlownessLevelForStage(int stage) {
+        if (stage == 1) {
+            return plugin.getConfigManager().getPenaltyStage1SlownessLevel();
+        } else if (stage == 2) {
+            return plugin.getConfigManager().getPenaltyStage2SlownessLevel();
+        } else if (stage >= 3) {
+            return plugin.getConfigManager().getPenaltyRecurringSlownessLevel();
+        }
+        return 0; // No slowness for stage 0
     }
     
     @EventHandler(priority = EventPriority.HIGH)
